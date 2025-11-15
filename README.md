@@ -11,6 +11,16 @@ This repository hosts an **unofficial** Home Assistant integration that talks di
 - Provides rich state attributes (warning/info strings, module SOC, attribution) so dashboards can show context alongside each sensor.
 - Packaged for HACS: add this repository as a custom source and install it on **any** Home Assistant instance.
 
+## Energy dashboard
+
+Homevolt Local surfaces cumulative `kWh` sensors so you can drop the integration straight into the Home Assistant Energy dashboard:
+
+- `sensor.homevolt_grid_energy_imported` / `sensor.homevolt_grid_energy_exported` → configure them under **Electricity grid** to track consumption/return to the grid.
+- `sensor.homevolt_solar_energy_produced` (and optionally `sensor.homevolt_solar_energy_consumed`) → use under **Solar production**.
+- `sensor.homevolt_battery_charge_energy` / `sensor.homevolt_battery_discharge_energy` → map to **Home battery storage** charging/discharging slots.
+
+All of these sensors advertise `device_class: energy` and `state_class: total_increasing`, giving them long-term statistics automatically. After saving the Energy configuration, the existing power sensors continue to drive the live energy flow cards.
+
 ## Installation via HACS
 
 1. In Home Assistant, go to **HACS → Integrations → … menu → Custom repositories**.

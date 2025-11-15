@@ -83,9 +83,20 @@ def summarize(payload: HomevoltPayload, now: datetime | None = None) -> Homevolt
 
     # Grid/Solar/Load channels use deterministic indexes from the EMS payload
     sensors = _ensure_list(ems.get("sensors"))
-    _apply_sensor(metrics, attributes["grid"], sensors, 0, "grid_power")
-    _apply_sensor(metrics, attributes["solar"], sensors, 1, "solar_power")
-    _apply_sensor(metrics, attributes["load"], sensors, 2, "load_power")
+    grid_sensor = _sensor_by_index(sensors, 0)
+    solar_sensor = _sensor_by_index(sensors, 1)
+    load_sensor = _sensor_by_index(sensors, 2)
+
+    _inject_power(metrics, attributes["grid"], grid_sensor, "grid_power")
+    _inject_power(metrics, attributes["solar"], solar_sensor, "solar_power")
+    _inject_power(metrics, attributes["load"], load_sensor, "load_power")
+
+    metrics["grid_energy_imported"] = _energy_value(grid_sensor.get("energy_imported"))
+    metrics["grid_energy_exported"] = _energy_value(grid_sensor.get("energy_exported"))
+    metrics["solar_energy_consumed"] = _energy_value(solar_sensor.get("energy_imported"))
+    metrics["solar_energy_produced"] = _energy_value(solar_sensor.get("energy_exported"))
+    metrics["battery_energy_imported"] = _energy_value(load_sensor.get("energy_imported"))
+    metrics["battery_energy_exported"] = _energy_value(load_sensor.get("energy_exported"))
 
     # Frequency and voltages
     metrics["frequency"] = _scaled_value(ems_data.get("frequency"), 1000)
@@ -117,20 +128,18 @@ def summarize(payload: HomevoltPayload, now: datetime | None = None) -> Homevolt
     return HomevoltCoordinatorData(metrics=metrics, attributes=attributes)
 
 
-def _apply_sensor(
+def _inject_power(
     metrics: dict[str, Any],
     target_attributes: dict[str, Any],
-    sensors: Iterable[Any],
-    index: int,
+    sensor: Mapping[str, Any],
     metric_key: str,
 ) -> None:
-    sensor = _sensor_by_index(sensors, index)
     metrics[metric_key] = _as_float(sensor.get("total_power"))
     target_attributes.update(
         {
             "phase": sensor.get("phase"),
-            "energy_imported": sensor.get("energy_imported"),
-            "energy_exported": sensor.get("energy_exported"),
+            "energy_imported": _energy_value(sensor.get("energy_imported")),
+            "energy_exported": _energy_value(sensor.get("energy_exported")),
         }
     )
 
@@ -168,6 +177,11 @@ def _ensure_list(value: Any) -> list[Any]:
     if isinstance(value, list):
         return list(value)
     return []
+
+
+def _energy_value(value: Any) -> float | None:
+    """Return energy counters as floats."""
+    return _as_float(value)
 
 
 def _scaled_value(value: Any, divider: float) -> float | None:

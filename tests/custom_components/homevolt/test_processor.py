@@ -38,9 +38,23 @@ def _base_payload() -> HomevoltPayload:
             }
         ],
         "sensors": [
-            {"total_power": 1000, "energy_imported": 1.2, "energy_exported": 0.1, "phase": {"l1": 400}},
-            {"total_power": 2500, "phase": {"l1": 1500}},
-            {"total_power": -1500},
+            {
+                "total_power": 1000,
+                "energy_imported": 125.5,
+                "energy_exported": 5.2,
+                "phase": {"l1": 400},
+            },
+            {
+                "total_power": 2500,
+                "energy_imported": 12.4,
+                "energy_exported": 210.7,
+                "phase": {"l1": 1500},
+            },
+            {
+                "total_power": -1500,
+                "energy_imported": 33.3,
+                "energy_exported": 12.2,
+            },
         ],
         "aggregated": {"state_str": "charging"},
     }
@@ -70,6 +84,12 @@ def test_summarize_populates_metrics() -> None:
     assert summary.metrics["grid_power"] == 1000
     assert summary.metrics["solar_power"] == 2500
     assert summary.metrics["load_power"] == -1500
+    assert summary.metrics["grid_energy_imported"] == 125.5
+    assert summary.metrics["grid_energy_exported"] == 5.2
+    assert summary.metrics["solar_energy_produced"] == 210.7
+    assert summary.metrics["solar_energy_consumed"] == 12.4
+    assert summary.metrics["battery_energy_imported"] == 33.3
+    assert summary.metrics["battery_energy_exported"] == 12.2
     assert summary.metrics["frequency"] == 50.038
     assert summary.metrics["voltage_l1"] == 231.5
     assert summary.metrics["voltage_l2"] == 232.0
@@ -88,6 +108,8 @@ def test_summarize_populates_metrics() -> None:
     system_attrs = summary.attributes["system"]
     assert system_attrs["warnings"] == ["temp_high"]
     assert system_attrs["info"] == ["grid_synced"]
+    grid_attrs = summary.attributes["grid"]
+    assert grid_attrs["energy_imported"] == 125.5
 
 
 def test_summarize_handles_missing_data() -> None:
