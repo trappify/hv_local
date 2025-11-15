@@ -41,7 +41,7 @@ This repository still contains the Home Assistant devcontainer/template scaffold
 3. `pytest`
 4. `python3 scripts/ha_manager.py start` (automatically installs HACS, assigns a free port, and seeds default credentials `devbox/devbox`).
 
-The dev container mounts `homeassistant/custom_components/homevolt` (symlinked to `custom_components/homevolt`) so Home Assistant reloads the integration whenever you restart it with `python3 scripts/ha_manager.py restart`.
+The dev container bind-mounts `custom_components/homevolt` into `/config/custom_components/homevolt`, so restarting Home Assistant via `python3 scripts/ha_manager.py restart` picks up changes immediately.
 
 ## Support & issues
 
