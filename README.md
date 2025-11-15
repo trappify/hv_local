@@ -1,66 +1,48 @@
-# Home Assistant Integration Template
+# Homevolt Local (Unofficial)
 
-This repository bootstraps a persistent Home Assistant instance that runs inside Docker and is managed through a Python CLI. It is designed to be cloned/forked for every new integration so the development container, credentials, and helper scripts are ready immediately.
+This repository hosts an **unofficial** Home Assistant integration that talks directly to a Homevolt battery gateway over the local network. It mirrors the JSON endpoints exposed by the gateway (`/status.json`, `/ems.json`, `/schedule.json`) and exposes the values as coordinator-driven sensors so you can track battery SOC, temperature, voltages, grid/solar/load power, and the active EMS schedule from any Home Assistant instance.
 
-## Highlights
+> ⚠️ Disclaimer: This project is not affiliated with Tibber or the official Homevolt team. Use at your own risk and never expose the Homevolt web interface to the public Internet. Inspect releases before installing them in production.
 
-- **Persistent config** – the Home Assistant configuration under `homeassistant/` is bind mounted, so installations (HACS, custom integrations, etc.) survive restarts.
-- **Automatic port selection** – the first free port in the `8123-9123` range is recorded in `.env`, letting multiple template instances run on the same host.
-- **One-click devcontainer** – `.devcontainer/devcontainer.json` installs dependencies, configures git hooks, and bootstraps the helper CLI automatically.
-- **Turnkey HACS** – `scripts/ha_manager.py` downloads and extracts the requested HACS release before each start if it is not already present.
-- **Auto-start hooks** – `.githooks/post-merge`/`post-checkout` call `ha_manager.py autostart` so pulling new changes or switching branches spins up the container without manual intervention.
-- **Tests for all tooling** – `pytest` covers the environment helpers, installers, docker wrapper, and the high-level manager class.
+## Features
 
-## Homevolt integration (unofficial)
+- Authenticates against the local Homevolt web UI (HTTP or HTTPS, with optional certificate validation).
+- Collects detailed telemetry: system status, LTE/Wi-Fi state, battery modules and cycle counts, grid/solar/load power, voltages, and schedule setpoints.
+- Provides rich state attributes (warning/info strings, module SOC, attribution) so dashboards can show context alongside each sensor.
+- Packaged for HACS: add this repository as a custom source and install it on **any** Home Assistant instance.
 
-The repository now also hosts an **unofficial** Homevolt custom integration that can be installed through HACS (`custom_components/homevolt`). It mirrors the public JSON endpoints exposed by the local Homevolt gateway and surfaces battery SOC, temperature, voltages, grid/solar/load power, and the active EMS schedule through coordinator-backed sensors. The implementation is heavily inspired by [fatuuse's Homevolt package shared on the Home Assistant Community forum](https://community.home-assistant.io/t/homevolt-package/845654) — huge thanks to them for documenting the endpoints and YAML sensors that made this work possible.
+## Installation via HACS
 
-> ⚠️ This project is not affiliated with Tibber or the Homevolt team. Use it at your own risk and double-check every release before installing it in a production Home Assistant instance.
+1. In Home Assistant, go to **HACS → Integrations → … menu → Custom repositories**.
+2. Add `https://github.com/trappify/hv_local` as a repository of type `Integration`.
+3. Install “Homevolt Local” from HACS.
+4. Restart Home Assistant when prompted.
+5. Navigate to **Settings → Devices & Services → Add Integration** and search for “Homevolt Local.”
+6. Enter the IP/host of your Homevolt gateway, port (default `443`), username/password (defaults to the local admin account), and whether HTTPS/SSL verification should be used.
 
-## Usage
+After the config entry is created the coordinator will refresh every 30 seconds by default. You can adjust the scan interval and SSL verification behavior through the integration’s Options dialog.
 
-1. Run `python3 scripts/configure_repo.py --non-interactive` once after cloning to copy `.env.example`, set git hooks, and register the default git identity.
-2. Start Home Assistant with `python3 scripts/ha_manager.py start` (or `make start`). The command ensures HACS is installed, assigns a free port, and creates the default credentials if necessary.
-3. Visit the UI at `http://localhost:<assigned-port>`; the assigned port is stored in `.env` under `HOST_HA_PORT`.
-4. Manage the stack with the remaining commands:
+## How it works
 
-   - `python3 scripts/ha_manager.py stop`
-   - `python3 scripts/ha_manager.py restart`
-   - `python3 scripts/ha_manager.py rebuild`
-   - `python3 scripts/ha_manager.py status`
+- A lightweight HTTP client (`custom_components/homevolt/api.py`) gathers the raw payloads from the gateway.
+- `custom_components/homevolt/processor.py` flattens the payloads into typed metrics (W, V, %, °C, etc.) and attaches helpful attributes (phase energy, warnings, local mode, etc.).
+- Sensors in `custom_components/homevolt/sensor.py` subscribe to the shared coordinator, so a single poll updates every entity in Home Assistant.
 
-5. Run `pytest` (or `make test`) before committing to keep coverage for the helper tooling.
+### Credits
 
-For detailed instructions on cloning this repository as the base for a brand-new integration (including Codex CLI-friendly guidance), see [USING_TEMPLATE.md](USING_TEMPLATE.md).
+The implementation is heavily inspired by [fatuuse’s Homevolt package](https://community.home-assistant.io/t/homevolt-package/845654) shared on the Home Assistant Community forum. Their documentation of the endpoints and original YAML sensors made this integration possible—thank you!
 
-## Codex CLI bootstrap prompt
+## Local development
 
-When you create a brand-new integration repo, paste the prompt below into Codex CLI exactly as written. Codex will detect the working directory via `pwd`, mirror the template from `https://github.com/trappify/hass_template`, configure git/hooks, run tests, and spin up Home Assistant automatically—no manual paths or ports required.
+This repository still contains the Home Assistant devcontainer/template scaffolding so contributors can spin up a persistent test instance:
 
-```
-Determine the absolute project path via `pwd` (call it <NEW_PROJECT_ROOT>). Working inside that directory:
-1. Clone https://github.com/trappify/hass_template into /tmp/hass_template, copy everything except its .git folder into <NEW_PROJECT_ROOT>, and remove the temporary clone.
-2. Run `python3 scripts/configure_repo.py --non-interactive`.
-3. Create a Python venv (`python3 -m venv .venv && source .venv/bin/activate`), install `.[dev]`, and run `pytest`.
-4. Start the dev container with `python3 scripts/ha_manager.py start --auto` so it picks an open port automatically, then report the reachable URL and the credentials from `.env`.
-5. Summarize what you copied or changed and list any follow-up steps I should take.
-Never skip restarting the container after changes, and never return work unless the tests succeed.
-```
+1. `python3 scripts/configure_repo.py --non-interactive`
+2. `python3 -m venv .venv && source .venv/bin/activate && pip install '.[dev]'`
+3. `pytest`
+4. `python3 scripts/ha_manager.py start` (automatically installs HACS, assigns a free port, and seeds default credentials `devbox/devbox`).
 
-## Default credentials
+The dev container mounts `homeassistant/custom_components/homevolt` (symlinked to `custom_components/homevolt`) so Home Assistant reloads the integration whenever you restart it with `python3 scripts/ha_manager.py restart`.
 
-Values live in `.env` and can be customized as needed. By default the template provisions username/password `devbox` / `devbox` with the display name `Dev Box Owner`.
+## Support & issues
 
-- `DEFAULT_HA_USERNAME`
-- `DEFAULT_HA_PASSWORD`
-- `DEFAULT_HA_NAME`
-
-The config also enables the `trusted_networks` auth provider for local subnets so testing remains convenient.
-
-## HACS
-
-`HACSInstaller` downloads the release archive defined by `HACS_VERSION` (default `latest`) and extracts it into `homeassistant/custom_components/hacs`. The `homeassistant/www/community` directory is also created automatically. To pin a specific version, change `HACS_VERSION` in `.env` (or `.env.example` for new repos) and rerun `scripts/configure_repo.py`.
-
-## Devcontainer behavior
-
-Opening the repository in VS Code Dev Containers installs dev dependencies, configures git hooks, and runs `ha_manager.py autostart` so Home Assistant begins running without extra steps. The container includes the Docker CLI via the `docker-outside-of-docker` feature, so the helper scripts can talk to the host Docker daemon.
+Open issues or feature requests on [GitHub](https://github.com/trappify/hv_local/issues). Include debug logs (`custom_components.homevolt: debug`) and anonymized payload snippets whenever possible so we can reproduce the problem.
