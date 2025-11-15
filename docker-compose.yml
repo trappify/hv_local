@@ -1,0 +1,24 @@
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: ${HA_CONTAINER_NAME:-ha_template}
+    restart: unless-stopped
+    privileged: true
+    network_mode: bridge
+    ports:
+      - "0.0.0.0:${HOST_HA_PORT:-8123}:8123"
+    environment:
+      - TZ=${TZ:-UTC}
+      - DEFAULT_HA_USERNAME=${DEFAULT_HA_USERNAME:-devbox}
+      - DEFAULT_HA_PASSWORD=${DEFAULT_HA_PASSWORD:-devbox}
+      - DEFAULT_HA_NAME=${DEFAULT_HA_NAME:-Dev\ Box\ Owner}
+    volumes:
+      - ./homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+    healthcheck:
+      test: ["CMD", "bash", "-c", "curl -f http://localhost:8123/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+name: hass_template

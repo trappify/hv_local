@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ha-template"
+version = "0.1.0"
+description = "Home Assistant development container template manager."
+authors = [
+  { name = "trappify" }
+]
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools]
+packages = ["ha_template"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra"
+pythonpath = [
+  "."
+]

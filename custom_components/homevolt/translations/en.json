@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Homevolt",
+        "description": "Provide the credentials for your local Homevolt battery gateway.",
+        "data": {
+          "host": "Host or IP address",
+          "port": "Port",
+          "username": "Username",
+          "password": "Password",
+          "use_https": "Use HTTPS",
+          "verify_ssl": "Verify SSL certificates"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to reach the Homevolt device.",
+      "invalid_auth": "The supplied username or password is not accepted.",
+      "unknown": "Unexpected error."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Homevolt options",
+        "data": {
+          "scan_interval": "Refresh interval (seconds)",
+          "verify_ssl": "Verify SSL certificates"
+        }
+      }
+    }
+  }
+}

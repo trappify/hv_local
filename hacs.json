@@ -1,0 +1,12 @@
+{
+  "name": "Homevolt Local",
+  "content_in_root": false,
+  "domains": [
+    "homevolt"
+  ],
+  "iot_class": "local_polling",
+  "render_readme": true,
+  "country": [
+    "SE"
+  ]
+}

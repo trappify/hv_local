@@ -1,0 +1,75 @@
+homeassistant:
+  name: Hass Template Lab
+  latitude: 59.3293
+  longitude: 18.0686
+  elevation: 0
+  unit_system: metric
+  time_zone: Europe/Stockholm
+  country: SE
+  auth_mfa_modules: []
+  auth_providers:
+    - type: homeassistant
+    - type: trusted_networks
+      trusted_networks:
+        - 127.0.0.1
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+        - 10.0.0.0/8
+        - ::1
+        - fd00::/8
+      allow_bypass_login: true
+
+default_config:
+
+network:
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+logger:
+  default: info
+  logs:
+    custom_components.homevolt: debug
+
+http:
+  server_port: 8123
+  server_host: 0.0.0.0
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1
+    - ::1
+  ip_ban_enabled: false
+  login_attempts_threshold: 5
+
+api:
+frontend:
+  extra_module_url:
+    - /hacsfiles/lovelace-hui-element-bundle.js
+
+lovelace:
+  mode: yaml
+  resources:
+    - url: /hacsfiles/lovelace-hui-element-bundle.js
+      type: module
+
+template:
+  - trigger:
+      - platform: homeassistant
+        event: start
+    sensor:
+      - name: Template Version
+        unique_id: template_version
+        state: !secret template_version
+        icon: mdi:home-analytics
+
+input_boolean:
+  template_feature_toggle:
+    name: Template Feature Toggle
+    icon: mdi:toggle-switch
+
+rest_command:
+  ping_webhook:
+    url: "https://httpbin.org/get"
+    method: get
+    verify_ssl: true

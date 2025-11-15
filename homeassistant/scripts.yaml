@@ -1,0 +1,7 @@
+turn_off_template_boolean:
+  alias: Turn Off Template Boolean
+  sequence:
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.template_feature_toggle
+  mode: single

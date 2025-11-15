@@ -1,0 +1,4 @@
+- id: template_scene
+  name: Template Scene
+  entities:
+    input_boolean.template_feature_toggle: on
