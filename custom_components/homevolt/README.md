@@ -19,4 +19,4 @@ This integration is **not** an official Tibber/Homevolt product. Use it at your 
 
 ## Local testing
 
-When developing in this repository, the devcontainer-managed Home Assistant instance bind-mounts this folder into `/config/custom_components/homevolt` (see `docker-compose.yml`). Restart Home Assistant (`python3 scripts/ha_manager.py restart`) after making changes so the container reloads the updated code.
+When developing in this repository, the devcontainer-managed Home Assistant instance bind-mounts this folder directly into `/config/custom_components/homevolt` (see `docker-compose.yml`). Restart Home Assistant (`python3 scripts/ha_manager.py restart`) after making changes so the container reloads the updated code.

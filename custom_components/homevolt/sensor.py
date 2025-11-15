@@ -41,8 +41,6 @@ SENSOR_DESCRIPTIONS: tuple[HomevoltSensorEntityDescription, ...] = (
         key="system_state",
         name="Homevolt System State",
         icon="mdi:battery-sync-outline",
-        device_class=SensorDeviceClass.ENUM,
-        options=["charge", "discharge", "idle", "grid_discharge", "grid_cycle"],
         value_fn=lambda data: data.metrics.get("system_state"),
         attr_key="system",
     ),
