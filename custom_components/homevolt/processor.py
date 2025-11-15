@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping
 
-from .const import ATTRIBUTION
 from .models import HomevoltCoordinatorData, HomevoltPayload
 
 SCHEDULE_TYPE_LABELS = {
@@ -23,7 +22,6 @@ def summarize(payload: HomevoltPayload, now: datetime | None = None) -> Homevolt
 
     metrics: dict[str, Any] = {}
     attributes: dict[str, dict[str, Any]] = {
-        "meta": {"attribution": ATTRIBUTION},
         "system": {},
         "battery": {},
         "grid": {},
