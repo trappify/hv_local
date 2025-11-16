@@ -32,6 +32,7 @@ def _base_payload() -> HomevoltPayload:
                     "info_str": ["grid_synced"],
                 },
                 "ems_voltage": {"l1": 2315, "l2": 2320, "l3": 2305},
+                "ems_aggregate": {"imported_kwh": 38.3, "exported_kwh": 45.58},
                 "bms_data": [
                     {"soc": 7200, "cycle_count": 14},
                     {"soc": 7500, "cycle_count": 12},
@@ -90,8 +91,8 @@ def test_summarize_populates_metrics() -> None:
     assert summary.metrics["grid_energy_exported"] == 5.2
     assert summary.metrics["solar_energy_produced"] == 210.7
     assert summary.metrics["solar_energy_consumed"] == 12.4
-    assert summary.metrics["battery_energy_imported"] == 45.022
-    assert summary.metrics["battery_energy_exported"] == 48.691
+    assert summary.metrics["battery_energy_imported"] == 38.3
+    assert summary.metrics["battery_energy_exported"] == 45.58
     assert summary.metrics["frequency"] == 50.038
     assert summary.metrics["voltage_l1"] == 231.5
     assert summary.metrics["voltage_l2"] == 232.0

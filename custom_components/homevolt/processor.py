@@ -36,6 +36,7 @@ def summarize(payload: HomevoltPayload, now: datetime | None = None) -> Homevolt
 
     ems_block = _first_list_entry(ems.get("ems"))
     ems_data = _ensure_mapping(ems_block.get("ems_data"))
+    ems_aggregate = _ensure_mapping(ems_block.get("ems_aggregate"))
     ems_voltage = _ensure_mapping(ems_block.get("ems_voltage"))
 
     # System level metrics
@@ -95,8 +96,12 @@ def summarize(payload: HomevoltPayload, now: datetime | None = None) -> Homevolt
     metrics["grid_energy_exported"] = _energy_value(grid_sensor.get("energy_exported"))
     metrics["solar_energy_consumed"] = _energy_value(solar_sensor.get("energy_imported"))
     metrics["solar_energy_produced"] = _energy_value(solar_sensor.get("energy_exported"))
-    metrics["battery_energy_imported"] = _energy_kwh(ems_data.get("energy_consumed"))
-    metrics["battery_energy_exported"] = _energy_kwh(ems_data.get("energy_produced"))
+    metrics["battery_energy_imported"] = _energy_value(ems_aggregate.get("imported_kwh"))
+    if metrics["battery_energy_imported"] is None:
+        metrics["battery_energy_imported"] = _energy_kwh(ems_data.get("energy_consumed"))
+    metrics["battery_energy_exported"] = _energy_value(ems_aggregate.get("exported_kwh"))
+    if metrics["battery_energy_exported"] is None:
+        metrics["battery_energy_exported"] = _energy_kwh(ems_data.get("energy_produced"))
 
     # Frequency and voltages
     metrics["frequency"] = _scaled_value(ems_data.get("frequency"), 1000)
