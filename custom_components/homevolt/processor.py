@@ -95,8 +95,8 @@ def summarize(payload: HomevoltPayload, now: datetime | None = None) -> Homevolt
     metrics["grid_energy_exported"] = _energy_value(grid_sensor.get("energy_exported"))
     metrics["solar_energy_consumed"] = _energy_value(solar_sensor.get("energy_imported"))
     metrics["solar_energy_produced"] = _energy_value(solar_sensor.get("energy_exported"))
-    metrics["battery_energy_imported"] = _energy_value(load_sensor.get("energy_imported"))
-    metrics["battery_energy_exported"] = _energy_value(load_sensor.get("energy_exported"))
+    metrics["battery_energy_imported"] = _energy_kwh(ems_data.get("energy_consumed"))
+    metrics["battery_energy_exported"] = _energy_kwh(ems_data.get("energy_produced"))
 
     # Frequency and voltages
     metrics["frequency"] = _scaled_value(ems_data.get("frequency"), 1000)
@@ -182,6 +182,14 @@ def _ensure_list(value: Any) -> list[Any]:
 def _energy_value(value: Any) -> float | None:
     """Return energy counters as floats."""
     return _as_float(value)
+
+
+def _energy_kwh(value: Any) -> float | None:
+    """Convert Homevolt Wh counters to kWh."""
+    raw = _as_float(value)
+    if raw is None:
+        return None
+    return raw / 1000
 
 
 def _scaled_value(value: Any, divider: float) -> float | None:

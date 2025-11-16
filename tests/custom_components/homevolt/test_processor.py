@@ -26,6 +26,8 @@ def _base_payload() -> HomevoltPayload:
                     "sys_temp": 225,
                     "power": -1800,
                     "frequency": 50038,
+                    "energy_produced": 48691,
+                    "energy_consumed": 45022,
                     "warning_str": ["temp_high"],
                     "info_str": ["grid_synced"],
                 },
@@ -88,8 +90,8 @@ def test_summarize_populates_metrics() -> None:
     assert summary.metrics["grid_energy_exported"] == 5.2
     assert summary.metrics["solar_energy_produced"] == 210.7
     assert summary.metrics["solar_energy_consumed"] == 12.4
-    assert summary.metrics["battery_energy_imported"] == 33.3
-    assert summary.metrics["battery_energy_exported"] == 12.2
+    assert summary.metrics["battery_energy_imported"] == 45.022
+    assert summary.metrics["battery_energy_exported"] == 48.691
     assert summary.metrics["frequency"] == 50.038
     assert summary.metrics["voltage_l1"] == 231.5
     assert summary.metrics["voltage_l2"] == 232.0
