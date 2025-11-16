@@ -115,9 +115,9 @@ def summarize(payload: HomevoltPayload, now: datetime | None = None) -> Homevolt
         schedule_state = SCHEDULE_TYPE_LABELS.get(active_schedule.get("type"))
         if schedule_state:
             metrics["schedule_state"] = schedule_state
-        metrics["schedule_setpoint"] = _as_float(
-            _ensure_mapping(active_schedule.get("params")).get("setpoint")
-        )
+        params = _ensure_mapping(active_schedule.get("params"))
+        setpoint = _as_float(params.get("setpoint"))
+        metrics["schedule_setpoint"] = setpoint if setpoint is not None else 0
         attributes["schedule"].update(
             {
                 "state": schedule_state,
