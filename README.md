@@ -3,6 +3,8 @@
 This repository hosts an **unofficial** Home Assistant integration that talks directly to a Homevolt battery gateway over the local network. It mirrors the JSON endpoints exposed by the gateway (`/status.json`, `/ems.json`, `/schedule.json`) and exposes the values as coordinator-driven sensors so you can track battery SOC, temperature, voltages, grid/solar/load power, and the active EMS schedule from any Home Assistant instance.
 
 > ⚠️ Disclaimer: This project is not affiliated with Tibber or the official Homevolt team. Use at your own risk and never expose the Homevolt web interface to the public Internet. Inspect releases before installing them in production.
+>
+> 🚧 **Early-stage notice**: The Homevolt integration is still under active development and the API surface may change between commits. Expect occasional breaking changes while we refine the data model and Energy dashboard support.
 
 ## Features
 
