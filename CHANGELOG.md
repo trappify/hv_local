@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.3
+- Added repository branding: new icon (`icon.png`) and logo (`logo.png`) generated from hv_hacs_icon.png for HACS display.
+
 ## 0.0.2
 - Added per-module sensors (SOC, min/max cell temperature, cycle count, available energy in kWh, alarms) and converted available energy to kWh with two decimals.
 - Module alarm sensors now show `OK` when clear.
