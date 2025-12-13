@@ -13,6 +13,8 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
+    CONF_HOST,
+    CONF_PORT,
     PERCENTAGE,
     UnitOfElectricPotential,
     UnitOfEnergy,
@@ -22,9 +24,10 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DEFAULT_NAME, DEFAULT_PORT, DEFAULT_USE_HTTPS, DOMAIN, CONF_USE_HTTPS
 from .coordinator import HomevoltDataUpdateCoordinator
 from .models import HomevoltCoordinatorData
 
@@ -231,7 +234,12 @@ async def async_setup_entry(
     """Set up Homevolt sensor entities."""
     coordinator: HomevoltDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     base_entities = [
-        HomevoltSensor(coordinator=coordinator, entry_id=entry.entry_id, description=description)
+        HomevoltSensor(
+            coordinator=coordinator,
+            entry=entry,
+            entry_id=entry.entry_id,
+            description=description,
+        )
         for description in SENSOR_DESCRIPTIONS
     ]
     module_entities: list[HomevoltSensor] = []
@@ -297,6 +305,7 @@ async def async_setup_entry(
             HomevoltModuleSensor(
                 module_index=index,
                 coordinator=coordinator,
+                entry=entry,
                 entry_id=entry.entry_id,
                 description=description,
             )
@@ -315,6 +324,7 @@ class HomevoltSensor(CoordinatorEntity[HomevoltDataUpdateCoordinator], SensorEnt
         self,
         *,
         coordinator: HomevoltDataUpdateCoordinator,
+        entry: ConfigEntry,
         entry_id: str,
         description: HomevoltSensorEntityDescription,
     ) -> None:
@@ -322,6 +332,7 @@ class HomevoltSensor(CoordinatorEntity[HomevoltDataUpdateCoordinator], SensorEnt
         self.entity_description = description
         self._attr_unique_id = f"{entry_id}_{description.key}"
         self._attr_name = description.name
+        self._entry = entry
         self._last_value: Any = None
 
     @property
@@ -360,6 +371,25 @@ class HomevoltSensor(CoordinatorEntity[HomevoltDataUpdateCoordinator], SensorEnt
         """Keep the last known value for volatile schedule fields."""
         return self.entity_description.key in {"schedule_state", "schedule_setpoint"}
 
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Link all entities to a single Homevolt device."""
+        host = self._entry.data.get(CONF_HOST)
+        port = self._entry.data.get(CONF_PORT, DEFAULT_PORT)
+        use_https = self._entry.data.get(CONF_USE_HTTPS, DEFAULT_USE_HTTPS)
+        configuration_url = None
+        if host:
+            scheme = "https" if use_https else "http"
+            configuration_url = f"{scheme}://{host}:{port}"
+
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry.unique_id or self._entry.entry_id)},
+            name=DEFAULT_NAME,
+            manufacturer="Homevolt",
+            model="Battery Gateway",
+            configuration_url=configuration_url,
+        )
+
 
 class HomevoltModuleSensor(HomevoltSensor):
     """Module-level metrics such as per-pack SOC and temperature."""
@@ -369,10 +399,11 @@ class HomevoltModuleSensor(HomevoltSensor):
         *,
         module_index: int,
         coordinator: HomevoltDataUpdateCoordinator,
+        entry: ConfigEntry,
         entry_id: str,
         description: HomevoltSensorEntityDescription,
     ) -> None:
-        super().__init__(coordinator=coordinator, entry_id=entry_id, description=description)
+        super().__init__(coordinator=coordinator, entry=entry, entry_id=entry_id, description=description)
         self._module_index = module_index
 
     def _module_data(self) -> dict[str, Any] | None:

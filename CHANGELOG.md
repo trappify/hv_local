@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.4
+- Added device registry support so all sensors attach to a single Homevolt device with stable identifiers and config URL.
+- Default device name set to `Homevolt` regardless of host/IP.
+- Documented branding behavior and clarified bundled icons.
+
 ## 0.0.3
 - Added repository branding: new icon (`icon.png`) and logo (`logo.png`) generated from hv_hacs_icon.png for HACS display.
 
