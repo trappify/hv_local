@@ -10,7 +10,7 @@ This repository hosts an **unofficial** Home Assistant integration that talks di
 
 - Authenticates against the local Homevolt web UI (HTTP or HTTPS, with optional certificate validation).
 - Collects detailed telemetry: system status, LTE/Wi-Fi state, battery modules and cycle counts, grid/solar/load power, voltages, and schedule setpoints.
-- Provides rich state attributes (warning/info strings, module SOC, attribution) so dashboards can show context alongside each sensor.
+- Provides rich state attributes (warning/info strings, module SOC, attribution) so dashboards can show context alongside each sensor. Each battery module also exposes its own sensors for SOC, min/max cell temperature, cycle count, available energy (kWh), and alarm status.
 - Packaged for HACS: add this repository as a custom source and install it on **any** Home Assistant instance.
 
 ## Energy dashboard

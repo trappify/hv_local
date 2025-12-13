@@ -72,6 +72,13 @@ def summarize(payload: HomevoltPayload, now: datetime | None = None) -> Homevolt
             {
                 "soc": _scaled_value(module_data.get("soc"), 100),
                 "cycle_count": module_data.get("cycle_count"),
+                "energy_available": _round_value(_energy_kwh(module_data.get("energy_avail")), 2),
+                "temperature_min": _scaled_value(module_data.get("tmin"), 10),
+                "temperature_max": _scaled_value(module_data.get("tmax"), 10),
+                "state": module_data.get("state"),
+                "state_str": module_data.get("state_str"),
+                "alarm": module_data.get("alarm"),
+                "alarm_flags": _ensure_list(module_data.get("alarm_str")),
             }
         )
     attributes["battery"].update(
@@ -202,6 +209,12 @@ def _scaled_value(value: Any, divider: float) -> float | None:
     if raw is None:
         return None
     return raw / divider
+
+
+def _round_value(value: float | None, decimals: int) -> float | None:
+    if value is None:
+        return None
+    return round(value, decimals)
 
 
 def _safe_str(value: Any) -> str | None:

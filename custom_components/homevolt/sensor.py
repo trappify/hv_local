@@ -209,6 +209,20 @@ SENSOR_DESCRIPTIONS: tuple[HomevoltSensorEntityDescription, ...] = (
 )
 
 
+def _module_value(data: HomevoltCoordinatorData, index: int, key: str) -> Any:
+    modules = data.attributes.get("battery", {}).get("modules", [])
+    if index < len(modules):
+        return modules[index].get(key)
+    return None
+
+
+def _module_flags_as_text(data: HomevoltCoordinatorData, index: int, key: str) -> str | None:
+    flags = _module_value(data, index, key) or []
+    if not flags:
+        return "OK"
+    return ", ".join(str(flag) for flag in flags)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -216,11 +230,80 @@ async def async_setup_entry(
 ) -> None:
     """Set up Homevolt sensor entities."""
     coordinator: HomevoltDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities = [
+    base_entities = [
         HomevoltSensor(coordinator=coordinator, entry_id=entry.entry_id, description=description)
         for description in SENSOR_DESCRIPTIONS
     ]
-    async_add_entities(entities)
+    module_entities: list[HomevoltSensor] = []
+
+    modules = []
+    if coordinator.data:
+        modules = coordinator.data.attributes.get("battery", {}).get("modules", [])
+
+    for index, _ in enumerate(modules):
+        number = index + 1
+        module_descriptions = (
+            HomevoltSensorEntityDescription(
+                key=f"battery_module_{number}_soc",
+                name=f"Homevolt Battery Module {number} State of Charge",
+                native_unit_of_measurement=PERCENTAGE,
+                device_class=SensorDeviceClass.BATTERY,
+                state_class=SensorStateClass.MEASUREMENT,
+                value_fn=lambda data, i=index: _module_value(data, i, "soc"),
+            ),
+            HomevoltSensorEntityDescription(
+                key=f"battery_module_{number}_temperature_min",
+                name=f"Homevolt Battery Module {number} Min Cell Temperature",
+                native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+                device_class=SensorDeviceClass.TEMPERATURE,
+                state_class=SensorStateClass.MEASUREMENT,
+                value_fn=lambda data, i=index: _module_value(data, i, "temperature_min"),
+            ),
+            HomevoltSensorEntityDescription(
+                key=f"battery_module_{number}_temperature_max",
+                name=f"Homevolt Battery Module {number} Max Cell Temperature",
+                native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+                device_class=SensorDeviceClass.TEMPERATURE,
+                state_class=SensorStateClass.MEASUREMENT,
+                value_fn=lambda data, i=index: _module_value(data, i, "temperature_max"),
+            ),
+            HomevoltSensorEntityDescription(
+                key=f"battery_module_{number}_cycle_count",
+                name=f"Homevolt Battery Module {number} Cycle Count",
+                state_class=SensorStateClass.MEASUREMENT,
+                value_fn=lambda data, i=index: _module_value(data, i, "cycle_count"),
+            ),
+            HomevoltSensorEntityDescription(
+                key=f"battery_module_{number}_energy_available",
+                name=f"Homevolt Battery Module {number} Available Energy",
+                native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+                device_class=SensorDeviceClass.ENERGY,
+                state_class=SensorStateClass.MEASUREMENT,
+                value_fn=lambda data, i=index: _module_value(data, i, "energy_available"),
+            ),
+            HomevoltSensorEntityDescription(
+                key=f"battery_module_{number}_state",
+                name=f"Homevolt Battery Module {number} State",
+                value_fn=lambda data, i=index: _module_value(data, i, "state_str")
+                or _module_value(data, i, "state"),
+            ),
+            HomevoltSensorEntityDescription(
+                key=f"battery_module_{number}_alarms",
+                name=f"Homevolt Battery Module {number} Alarms",
+                value_fn=lambda data, i=index: _module_flags_as_text(data, i, "alarm_flags"),
+            ),
+        )
+        module_entities.extend(
+            HomevoltModuleSensor(
+                module_index=index,
+                coordinator=coordinator,
+                entry_id=entry.entry_id,
+                description=description,
+            )
+            for description in module_descriptions
+        )
+
+    async_add_entities([*base_entities, *module_entities])
 
 
 class HomevoltSensor(CoordinatorEntity[HomevoltDataUpdateCoordinator], SensorEntity):
@@ -239,13 +322,20 @@ class HomevoltSensor(CoordinatorEntity[HomevoltDataUpdateCoordinator], SensorEnt
         self.entity_description = description
         self._attr_unique_id = f"{entry_id}_{description.key}"
         self._attr_name = description.name
+        self._last_value: Any = None
 
     @property
     def native_value(self) -> Any:
         """Return the measurement for this sensor."""
         if not self.coordinator.data:
+            if self._should_persist_value:
+                return self._last_value
             return None
-        return self.entity_description.value_fn(self.coordinator.data)
+        value = self.entity_description.value_fn(self.coordinator.data)
+        if value is None and self._should_persist_value:
+            return self._last_value
+        self._last_value = value
+        return value
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
@@ -263,4 +353,41 @@ class HomevoltSensor(CoordinatorEntity[HomevoltDataUpdateCoordinator], SensorEnt
             if scoped:
                 attributes.update(scoped)
 
+        return attributes or None
+
+    @property
+    def _should_persist_value(self) -> bool:
+        """Keep the last known value for volatile schedule fields."""
+        return self.entity_description.key in {"schedule_state", "schedule_setpoint"}
+
+
+class HomevoltModuleSensor(HomevoltSensor):
+    """Module-level metrics such as per-pack SOC and temperature."""
+
+    def __init__(
+        self,
+        *,
+        module_index: int,
+        coordinator: HomevoltDataUpdateCoordinator,
+        entry_id: str,
+        description: HomevoltSensorEntityDescription,
+    ) -> None:
+        super().__init__(coordinator=coordinator, entry_id=entry_id, description=description)
+        self._module_index = module_index
+
+    def _module_data(self) -> dict[str, Any] | None:
+        if not self.coordinator.data:
+            return None
+        modules = self.coordinator.data.attributes.get("battery", {}).get("modules", [])
+        if self._module_index < len(modules):
+            return modules[self._module_index]
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return module-specific attributes (state, cycle count, alarms)."""
+        attributes = super().extra_state_attributes or {}
+        module = self._module_data()
+        if module:
+            attributes.update(module)
         return attributes or None
