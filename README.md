@@ -12,7 +12,10 @@ This repository hosts an **unofficial** Home Assistant integration that talks di
 - Collects detailed telemetry: system status, LTE/Wi-Fi state, battery modules and cycle counts, grid/solar/load power, voltages, and schedule setpoints.
 - Provides rich state attributes (warning/info strings, module SOC, attribution) so dashboards can show context alongside each sensor. Each battery module also exposes its own sensors for SOC, min/max cell temperature, cycle count, available energy (kWh), and alarm status.
 - Packaged for HACS: add this repository as a custom source and install it on **any** Home Assistant instance.
-- Surfaces health and problem indicators from `/error_report.json`: overall health, overall problem binary sensor, and per-subsystem problem sensors with active issues in attributes.
+- Surfaces health and problem indicators from `/error_report.json`:
+  - `sensor.homevolt_health` (`ok`/`warning`/`error`/`unknown`) with warning/error counts and active items in attributes.
+  - `binary_sensor.homevolt_problem` (on if any warning or error) with the same active items.
+  - Per-subsystem problem binary sensors (diagnostic) so you can quickly see which area is affected; attributes show only that subsystem’s active items.
 - Entities are grouped under a single Homevolt device for easier navigation. The Home Assistant integration badge may still show the generic icon because custom integrations only get brand logos when they’re merged into the official `home-assistant/brands` repository; the bundled logos are used by HACS installs.
 
 ## Energy dashboard
