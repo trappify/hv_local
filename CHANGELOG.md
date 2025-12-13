@@ -5,6 +5,9 @@
 - Polled `/error_report.json` to surface health/diagnostic signals: overall health sensor, overall problem binary sensor, and per-subsystem problem sensors with active error details.
 - Documented branding behavior and clarified bundled icons.
 
+## 0.0.5
+- Adjust grid frequency display to show two decimal places while keeping raw values unchanged.
+
 ## 0.0.3
 - Added repository branding: new icon (`icon.png`) and logo (`logo.png`) generated from hv_hacs_icon.png for HACS display.
 
