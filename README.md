@@ -68,4 +68,4 @@ The dev container bind-mounts `custom_components/homevolt` into `/config/custom_
 
 ## Support & issues
 
-Open issues or feature requests on [GitHub](https://github.com/trappify/hv_local/issues). Include debug logs (`custom_components.homevolt: debug`) and anonymized payload snippets whenever possible so we can reproduce the problem.
+Open issues or feature requests on [GitHub](https://github.com/trappify/hv_local/issues). This is a hobby, best-effort project and I work on it in short bursts, so response times can vary—please don’t expect instant magic. Include debug logs (`custom_components.homevolt: debug`) and anonymized payload snippets whenever possible so we can reproduce the problem.
