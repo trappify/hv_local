@@ -11,7 +11,7 @@ Most endpoint knowledge, JSON structures, and sensor ideas originate from [fatuu
 - Authenticate against the local Homevolt web UI (HTTP or HTTPS, with optional certificate validation).
 - Poll `/status.json`, `/ems.json`, and `/schedule.json` to gather battery, grid, and scheduling data.
 - Publish coordinator-backed sensors for SOC, temperature, voltages, grid/solar/load power, EMS state, and the active schedule state/setpoint.
-- Provide per-sensor attributes such as module SOC values, warning/info strings, LTE/Wi-Fi status, and attribution details.
+- Provide per-sensor attributes such as module SOC values, warning/info strings, LTE/Wi-Fi status, and attribution details. Module-level sensors appear when the gateway reports modules.
 - Surface `/error_report.json` as:
   - `sensor.homevolt_health` (`ok`/`warning`/`error`/`unknown`) with warning/error counts and active items in attributes.
   - `binary_sensor.homevolt_problem` (problem on if any warning or error) with the same active items.
@@ -25,3 +25,9 @@ This integration is **not** an official Tibber/Homevolt product. Use it at your 
 ## Local testing
 
 When developing in this repository, the devcontainer-managed Home Assistant instance bind-mounts this folder directly into `/config/custom_components/homevolt` (see `docker-compose.yml`). Restart Home Assistant (`python3 scripts/ha_manager.py restart`) after making changes so the container reloads the updated code.
+
+## Tips for use
+
+- Use `binary_sensor.homevolt_problem` for alerting/automations: it turns on if any warning or error is active.
+- Check `sensor.homevolt_health` for severity (`ok`/`warning`/`error`/`unknown`) and counts in attributes.
+- Per-subsystem problem sensors (diagnostic) help narrow down which area is affected; see the Homevolt device page to review subsystem-specific active items.

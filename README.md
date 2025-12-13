@@ -10,7 +10,7 @@ This repository hosts an **unofficial** Home Assistant integration that talks di
 
 - Authenticates against the local Homevolt web UI (HTTP or HTTPS, with optional certificate validation).
 - Collects detailed telemetry: system status, LTE/Wi-Fi state, battery modules and cycle counts, grid/solar/load power, voltages, and schedule setpoints.
-- Provides rich state attributes (warning/info strings, module SOC, attribution) so dashboards can show context alongside each sensor. Each battery module also exposes its own sensors for SOC, min/max cell temperature, cycle count, available energy (kWh), and alarm status.
+- Provides rich state attributes (warning/info strings, module SOC, attribution) so dashboards can show context alongside each sensor. Battery modules expose SOC, min/max cell temperature, cycle count, available energy (kWh), and alarm status when the gateway reports them.
 - Packaged for HACS: add this repository as a custom source and install it on **any** Home Assistant instance.
 - Surfaces health and problem indicators from `/error_report.json`:
   - `sensor.homevolt_health` (`ok`/`warning`/`error`/`unknown`) with warning/error counts and active items in attributes.
@@ -38,6 +38,12 @@ All of these sensors advertise `device_class: energy` and `state_class: total_in
 6. Enter the IP/host of your Homevolt gateway, port (default `443`), username/password (defaults to the local admin account), and whether HTTPS/SSL verification should be used.
 
 After the config entry is created the coordinator will refresh every 30 seconds by default. You can adjust the scan interval and SSL verification behavior through the integration’s Options dialog.
+
+### Options
+
+- **Scan interval**: Default 30 seconds; lower if you need faster updates, higher to reduce load.
+- **Verify SSL**: Toggle certificate verification when using HTTPS.
+- **Use HTTPS / Port**: Set during initial setup; re-run the config flow if you need to change them.
 
 ## How it works
 
