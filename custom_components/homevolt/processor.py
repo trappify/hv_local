@@ -28,6 +28,7 @@ def summarize(payload: HomevoltPayload, now: datetime | None = None) -> Homevolt
         "solar": {},
         "load": {},
         "schedule": {},
+        "errors": {},
     }
 
     status = _ensure_mapping(payload.status)
@@ -137,6 +138,16 @@ def summarize(payload: HomevoltPayload, now: datetime | None = None) -> Homevolt
     else:
         attributes["schedule"]["local_mode"] = schedule.get("local_mode")
 
+    # Error report summarization
+    raw_error_report = payload.error_report
+    error_report = _ensure_list(raw_error_report) if raw_error_report is not None else []
+    _inject_error_summary(
+        metrics,
+        attributes["errors"],
+        error_report,
+        has_report=raw_error_report is not None,
+    )
+
     return HomevoltCoordinatorData(metrics=metrics, attributes=attributes)
 
 
@@ -239,3 +250,63 @@ def _first_list_entry(value: Any) -> Mapping[str, Any]:
         if isinstance(entry, Mapping):
             return dict(entry)
     return {}
+
+
+def _inject_error_summary(
+    metrics: dict[str, Any],
+    target_attributes: dict[str, Any],
+    error_report: list[Mapping[str, Any]],
+    *,
+    has_report: bool,
+) -> None:
+    active_items: list[dict[str, Any]] = []
+    subsystems: dict[str, dict[str, Any]] = {}
+
+    warning_count = 0
+    error_count = 0
+
+    for item in error_report:
+        entry = _ensure_mapping(item)
+        status = entry.get("activated")
+        if status not in {"warning", "error"}:
+            continue
+        if status == "warning":
+            warning_count += 1
+        else:
+            error_count += 1
+        subsystem = _safe_str(entry.get("sub_system_name")) or "unknown"
+        active_item = {
+            "sub_system_name": subsystem,
+            "error_name": entry.get("error_name"),
+            "activated": status,
+            "message": entry.get("message"),
+            "details": _ensure_list(entry.get("details")),
+        }
+        active_items.append(active_item)
+        bucket = subsystems.setdefault(subsystem, {"active_items": []})
+        bucket["active_items"].append(active_item)
+
+    if not has_report:
+        health_state = "unknown"
+    elif error_count:
+        health_state = "error"
+    elif warning_count:
+        health_state = "warning"
+    else:
+        health_state = "ok"
+
+    metrics["health_state"] = health_state
+    metrics["warning_count"] = warning_count
+    metrics["error_count"] = error_count
+    metrics["subsystem_status"] = {
+        name: bool(data.get("active_items")) for name, data in subsystems.items()
+    }
+
+    target_attributes.update(
+        {
+            "warning_count": warning_count,
+            "error_count": error_count,
+            "active_items": active_items,
+            "subsystems": subsystems,
+        }
+    )

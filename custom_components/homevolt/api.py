@@ -12,6 +12,7 @@ from .models import HomevoltPayload
 STATUS_ENDPOINT = "/status.json"
 EMS_ENDPOINT = "/ems.json"
 SCHEDULE_ENDPOINT = "/schedule.json"
+ERROR_REPORT_ENDPOINT = "/error_report.json"
 REQUEST_TIMEOUT = 30
 
 
@@ -58,7 +59,13 @@ class HomevoltClient:
         """Fetch the three major JSON endpoints."""
         status, ems = await self._async_request(STATUS_ENDPOINT), await self._async_request(EMS_ENDPOINT)
         schedule = await self._async_request(SCHEDULE_ENDPOINT, raise_on_fail=False)
-        return HomevoltPayload(status=status or {}, ems=ems or {}, schedule=schedule)
+        error_report = await self._async_request(ERROR_REPORT_ENDPOINT, raise_on_fail=False)
+        return HomevoltPayload(
+            status=status or {},
+            ems=ems or {},
+            schedule=schedule,
+            error_report=error_report,
+        )
 
     async def _async_request(
         self, path: str, *, raise_on_fail: bool = True

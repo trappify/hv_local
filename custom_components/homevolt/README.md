@@ -12,6 +12,7 @@ Most endpoint knowledge, JSON structures, and sensor ideas originate from [fatuu
 - Poll `/status.json`, `/ems.json`, and `/schedule.json` to gather battery, grid, and scheduling data.
 - Publish coordinator-backed sensors for SOC, temperature, voltages, grid/solar/load power, EMS state, and the active schedule state/setpoint.
 - Provide per-sensor attributes such as module SOC values, warning/info strings, LTE/Wi-Fi status, and attribution details.
+- Surface `/error_report.json` as overall health/problem entities and per-subsystem problem indicators with active issues in attributes.
 - All entities are grouped under a single Homevolt device in Home Assistant. The integration tile may still show a generic icon because custom integrations only display branded logos once the assets are upstreamed to `home-assistant/brands`; HACS will use the bundled icons shipped with this repo.
 
 ## Disclaimer

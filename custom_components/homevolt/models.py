@@ -13,6 +13,7 @@ class HomevoltPayload:
     status: Mapping[str, Any]
     ems: Mapping[str, Any]
     schedule: Mapping[str, Any] | None = None
+    error_report: list[Mapping[str, Any]] | None = None
 
 
 @dataclass(frozen=True)

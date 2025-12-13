@@ -61,6 +61,29 @@ def _base_payload() -> HomevoltPayload:
         ],
         "aggregated": {"state_str": "charging"},
     }
+    error_report = [
+        {
+            "sub_system_name": "EMS",
+            "error_name": "over_temp",
+            "activated": "warning",
+            "message": "Temperature high",
+            "details": ["pack1"],
+        },
+        {
+            "sub_system_name": "CONNECTIVITY",
+            "error_name": "link_down",
+            "activated": "error",
+            "message": "LTE offline",
+            "details": [],
+        },
+        {
+            "sub_system_name": "EMS",
+            "error_name": "ok_state",
+            "activated": "ok",
+            "message": "all good",
+            "details": [],
+        },
+    ]
     schedule = {
         "local_mode": "auto",
         "schedule": [
@@ -72,7 +95,7 @@ def _base_payload() -> HomevoltPayload:
             }
         ],
     }
-    return HomevoltPayload(status=status, ems=ems, schedule=schedule)
+    return HomevoltPayload(status=status, ems=ems, schedule=schedule, error_report=error_report)
 
 
 def test_summarize_populates_metrics() -> None:
@@ -99,6 +122,9 @@ def test_summarize_populates_metrics() -> None:
     assert summary.metrics["voltage_l3"] == 230.5
     assert summary.metrics["schedule_state"] == "charge"
     assert summary.metrics["schedule_setpoint"] == 3500
+    assert summary.metrics["health_state"] == "error"
+    assert summary.metrics["warning_count"] == 1
+    assert summary.metrics["error_count"] == 1
 
     battery_attrs = summary.attributes["battery"]
     assert battery_attrs["modules"][0]["soc"] == 72
@@ -113,6 +139,12 @@ def test_summarize_populates_metrics() -> None:
     assert system_attrs["info"] == ["grid_synced"]
     grid_attrs = summary.attributes["grid"]
     assert grid_attrs["energy_imported"] == 125.5
+    error_attrs = summary.attributes["errors"]
+    assert error_attrs["warning_count"] == 1
+    assert error_attrs["error_count"] == 1
+    assert len(error_attrs["active_items"]) == 2
+    assert "EMS" in error_attrs["subsystems"]
+    assert error_attrs["subsystems"]["EMS"]["active_items"][0]["error_name"] == "over_temp"
 
 
 def test_summarize_handles_missing_data() -> None:
@@ -124,3 +156,6 @@ def test_summarize_handles_missing_data() -> None:
     assert "battery_soc" in summary.metrics
     assert summary.metrics["battery_soc"] is None
     assert summary.attributes["system"]["warnings"] == []
+    assert summary.metrics["health_state"] == "unknown"
+    assert summary.metrics["warning_count"] == 0
+    assert summary.metrics["error_count"] == 0

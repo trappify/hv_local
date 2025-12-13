@@ -49,6 +49,14 @@ SENSOR_DESCRIPTIONS: tuple[HomevoltSensorEntityDescription, ...] = (
         attr_key="system",
     ),
     HomevoltSensorEntityDescription(
+        key="health_state",
+        name="Homevolt Health",
+        device_class=SensorDeviceClass.ENUM,
+        options=["ok", "warning", "error", "unknown"],
+        value_fn=lambda data: data.metrics.get("health_state"),
+        attr_key="errors",
+    ),
+    HomevoltSensorEntityDescription(
         key="battery_soc",
         name="Homevolt Battery State of Charge",
         native_unit_of_measurement=PERCENTAGE,

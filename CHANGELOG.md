@@ -1,8 +1,8 @@
 # Changelog
 
 ## 0.0.4
-- Added device registry support so all sensors attach to a single Homevolt device with stable identifiers and config URL.
-- Default device name set to `Homevolt` regardless of host/IP.
+- Added device registry support so all sensors attach to a single Homevolt device with stable identifiers and config URL; default device name set to `Homevolt`.
+- Polled `/error_report.json` to surface health/diagnostic signals: overall health sensor, overall problem binary sensor, and per-subsystem problem sensors with active error details.
 - Documented branding behavior and clarified bundled icons.
 
 ## 0.0.3
