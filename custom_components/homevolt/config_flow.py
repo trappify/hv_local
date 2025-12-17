@@ -21,7 +21,9 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import HomevoltAuthError, HomevoltClient, HomevoltConnectionError
 from .const import (
+    CONF_FULL_CAPACITY_SOC_THRESHOLD,
     CONF_USE_HTTPS,
+    DEFAULT_FULL_CAPACITY_SOC_THRESHOLD,
     DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_USE_HTTPS,
@@ -125,6 +127,10 @@ class HomevoltOptionsFlowHandler(config_entries.OptionsFlow):
             CONF_VERIFY_SSL: self.config_entry.options.get(
                 CONF_VERIFY_SSL, self.config_entry.data.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL)
             ),
+            CONF_FULL_CAPACITY_SOC_THRESHOLD: self.config_entry.options.get(
+                CONF_FULL_CAPACITY_SOC_THRESHOLD,
+                DEFAULT_FULL_CAPACITY_SOC_THRESHOLD,
+            ),
         }
 
         data_schema = vol.Schema(
@@ -137,6 +143,10 @@ class HomevoltOptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_VERIFY_SSL,
                     default=options[CONF_VERIFY_SSL],
                 ): bool,
+                vol.Required(
+                    CONF_FULL_CAPACITY_SOC_THRESHOLD,
+                    default=options[CONF_FULL_CAPACITY_SOC_THRESHOLD],
+                ): vol.All(vol.Coerce(float), vol.Range(min=50.0, max=100.0)),
             }
         )
 

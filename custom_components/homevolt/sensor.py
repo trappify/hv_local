@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from homeassistant.components.sensor import (
+    RestoreSensor,
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
@@ -27,7 +28,16 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DEFAULT_NAME, DEFAULT_PORT, DEFAULT_USE_HTTPS, DOMAIN, CONF_USE_HTTPS
+from .capacity import sample_total_when_full, sample_when_full
+from .const import (
+    CONF_FULL_CAPACITY_SOC_THRESHOLD,
+    CONF_USE_HTTPS,
+    DEFAULT_FULL_CAPACITY_SOC_THRESHOLD,
+    DEFAULT_NAME,
+    DEFAULT_PORT,
+    DEFAULT_USE_HTTPS,
+    DOMAIN,
+)
 from .coordinator import HomevoltDataUpdateCoordinator
 from .models import HomevoltCoordinatorData
 
@@ -157,6 +167,39 @@ SENSOR_DESCRIPTIONS: tuple[HomevoltSensorEntityDescription, ...] = (
         attr_key="schedule",
     ),
     HomevoltSensorEntityDescription(
+        key="next_charge_start",
+        name="Homevolt Next Charge Start",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:battery-charging",
+        value_fn=lambda data: data.metrics.get("next_charge_start"),
+        attr_key="schedule",
+    ),
+    HomevoltSensorEntityDescription(
+        key="next_discharge_start",
+        name="Homevolt Next Discharge Start",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:battery-minus",
+        value_fn=lambda data: data.metrics.get("next_discharge_start"),
+        attr_key="schedule",
+    ),
+    HomevoltSensorEntityDescription(
+        key="next_non_idle_start",
+        name="Homevolt Next Schedule Event Start",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:calendar-clock",
+        value_fn=lambda data: data.metrics.get("next_non_idle_start"),
+        attr_key="schedule",
+    ),
+    HomevoltSensorEntityDescription(
+        key="next_non_idle_state",
+        name="Homevolt Next Schedule Event Type",
+        device_class=SensorDeviceClass.ENUM,
+        options=["charge", "discharge", "grid_discharge", "grid_cycle", "idle", "unknown"],
+        icon="mdi:calendar",
+        value_fn=lambda data: data.metrics.get("next_non_idle_state") or "unknown",
+        attr_key="schedule",
+    ),
+    HomevoltSensorEntityDescription(
         key="schedule_setpoint",
         name="Homevolt Schedule Setpoint",
         native_unit_of_measurement=UnitOfPower.WATT,
@@ -251,11 +294,15 @@ async def async_setup_entry(
         )
         for description in SENSOR_DESCRIPTIONS
     ]
-    module_entities: list[HomevoltSensor] = []
+    module_entities: list[SensorEntity] = []
 
     modules = []
     if coordinator.data:
         modules = coordinator.data.attributes.get("battery", {}).get("modules", [])
+
+    full_threshold = entry.options.get(
+        CONF_FULL_CAPACITY_SOC_THRESHOLD, DEFAULT_FULL_CAPACITY_SOC_THRESHOLD
+    )
 
     for index, _ in enumerate(modules):
         number = index + 1
@@ -299,6 +346,15 @@ async def async_setup_entry(
                 value_fn=lambda data, i=index: _module_value(data, i, "energy_available"),
             ),
             HomevoltSensorEntityDescription(
+                key=f"battery_module_{number}_full_energy_available",
+                name=f"Homevolt Battery Module {number} Full Available Energy",
+                native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+                device_class=SensorDeviceClass.ENERGY,
+                state_class=SensorStateClass.MEASUREMENT,
+                suggested_display_precision=2,
+                value_fn=lambda data, i=index: _module_value(data, i, "energy_available"),
+            ),
+            HomevoltSensorEntityDescription(
                 key=f"battery_module_{number}_state",
                 name=f"Homevolt Battery Module {number} State",
                 value_fn=lambda data, i=index: _module_value(data, i, "state_str")
@@ -311,17 +367,39 @@ async def async_setup_entry(
             ),
         )
         module_entities.extend(
-            HomevoltModuleSensor(
-                module_index=index,
-                coordinator=coordinator,
-                entry=entry,
-                entry_id=entry.entry_id,
-                description=description,
+            (
+                HomevoltFullEnergyModuleSensor(
+                    module_index=index,
+                    full_threshold=full_threshold,
+                    coordinator=coordinator,
+                    entry=entry,
+                    entry_id=entry.entry_id,
+                    description=description,
+                )
+                if description.key.endswith("_full_energy_available")
+                else HomevoltModuleSensor(
+                    module_index=index,
+                    coordinator=coordinator,
+                    entry=entry,
+                    entry_id=entry.entry_id,
+                    description=description,
+                )
             )
             for description in module_descriptions
         )
 
-    async_add_entities([*base_entities, *module_entities])
+    total_entities: list[SensorEntity] = []
+    if modules:
+        total_entities.append(
+            HomevoltFullEnergyTotalSensor(
+                coordinator=coordinator,
+                entry=entry,
+                entry_id=entry.entry_id,
+                full_threshold=full_threshold,
+            )
+        )
+
+    async_add_entities([*base_entities, *module_entities, *total_entities])
 
 
 class HomevoltSensor(CoordinatorEntity[HomevoltDataUpdateCoordinator], SensorEntity):
@@ -378,7 +456,14 @@ class HomevoltSensor(CoordinatorEntity[HomevoltDataUpdateCoordinator], SensorEnt
     @property
     def _should_persist_value(self) -> bool:
         """Keep the last known value for volatile schedule fields."""
-        return self.entity_description.key in {"schedule_state", "schedule_setpoint"}
+        return self.entity_description.key in {
+            "schedule_state",
+            "schedule_setpoint",
+            "next_charge_start",
+            "next_discharge_start",
+            "next_non_idle_start",
+            "next_non_idle_state",
+        }
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -431,3 +516,172 @@ class HomevoltModuleSensor(HomevoltSensor):
         if module:
             attributes.update(module)
         return attributes or None
+
+
+class HomevoltFullEnergyModuleSensor(
+    CoordinatorEntity[HomevoltDataUpdateCoordinator],
+    RestoreSensor,
+):
+    """Sample module available energy only when the module is full."""
+
+    entity_description: HomevoltSensorEntityDescription
+
+    def __init__(
+        self,
+        *,
+        module_index: int,
+        full_threshold: float,
+        coordinator: HomevoltDataUpdateCoordinator,
+        entry: ConfigEntry,
+        entry_id: str,
+        description: HomevoltSensorEntityDescription,
+    ) -> None:
+        super().__init__(coordinator)
+        self.entity_description = description
+        self._module_index = module_index
+        self._full_threshold = float(full_threshold)
+        self._attr_unique_id = f"{entry_id}_{description.key}"
+        self._attr_name = description.name
+        self._entry = entry
+        self._last_sample: float | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the last stored value after restarts."""
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if not last_state:
+            return
+        try:
+            self._last_sample = float(last_state.state)
+        except (TypeError, ValueError):
+            self._last_sample = None
+
+    def _module_data(self) -> dict[str, Any] | None:
+        if not self.coordinator.data:
+            return None
+        modules = self.coordinator.data.attributes.get("battery", {}).get("modules", [])
+        if self._module_index < len(modules):
+            return modules[self._module_index]
+        return None
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the last sampled full energy value."""
+        module = self._module_data()
+        if not module:
+            return self._last_sample
+
+        self._last_sample = sample_when_full(
+            current_value=module.get("energy_available"),
+            soc=module.get("soc"),
+            threshold=self._full_threshold,
+            previous_value=self._last_sample,
+        )
+        return self._last_sample
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        module = self._module_data() or {}
+        attributes = {
+            "soc_threshold": self._full_threshold,
+            "current_soc": module.get("soc"),
+            "current_energy_available": module.get("energy_available"),
+            "sampled_energy_available": self._last_sample,
+        }
+        return attributes
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Link all entities to a single Homevolt device."""
+        host = self._entry.data.get(CONF_HOST)
+        port = self._entry.data.get(CONF_PORT, DEFAULT_PORT)
+        use_https = self._entry.data.get(CONF_USE_HTTPS, DEFAULT_USE_HTTPS)
+        configuration_url = None
+        if host:
+            scheme = "https" if use_https else "http"
+            configuration_url = f"{scheme}://{host}:{port}"
+
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry.unique_id or self._entry.entry_id)},
+            name=DEFAULT_NAME,
+            manufacturer="Homevolt",
+            model="Battery Gateway",
+            configuration_url=configuration_url,
+        )
+
+
+class HomevoltFullEnergyTotalSensor(
+    CoordinatorEntity[HomevoltDataUpdateCoordinator],
+    RestoreSensor,
+):
+    """Sample total available energy only when all modules are full."""
+
+    def __init__(
+        self,
+        *,
+        coordinator: HomevoltDataUpdateCoordinator,
+        entry: ConfigEntry,
+        entry_id: str,
+        full_threshold: float,
+    ) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._full_threshold = float(full_threshold)
+        self._attr_unique_id = f"{entry_id}_battery_full_energy_available"
+        self._attr_name = "Homevolt Battery Full Available Energy"
+        self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+        self._attr_device_class = SensorDeviceClass.ENERGY
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_suggested_display_precision = 2
+        self._last_sample: float | None = None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if not last_state:
+            return
+        try:
+            self._last_sample = float(last_state.state)
+        except (TypeError, ValueError):
+            self._last_sample = None
+
+    @property
+    def native_value(self) -> float | None:
+        if not self.coordinator.data:
+            return self._last_sample
+
+        modules = self.coordinator.data.attributes.get("battery", {}).get("modules", [])
+        self._last_sample = sample_total_when_full(
+            modules=modules,
+            threshold=self._full_threshold,
+            previous_value=self._last_sample,
+        )
+        return self._last_sample
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        modules = []
+        if self.coordinator.data:
+            modules = self.coordinator.data.attributes.get("battery", {}).get("modules", [])
+        return {
+            "soc_threshold": self._full_threshold,
+            "module_count": len(modules),
+        }
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        host = self._entry.data.get(CONF_HOST)
+        port = self._entry.data.get(CONF_PORT, DEFAULT_PORT)
+        use_https = self._entry.data.get(CONF_USE_HTTPS, DEFAULT_USE_HTTPS)
+        configuration_url = None
+        if host:
+            scheme = "https" if use_https else "http"
+            configuration_url = f"{scheme}://{host}:{port}"
+
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry.unique_id or self._entry.entry_id)},
+            name=DEFAULT_NAME,
+            manufacturer="Homevolt",
+            model="Battery Gateway",
+            configuration_url=configuration_url,
+        )

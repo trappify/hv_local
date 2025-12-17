@@ -138,6 +138,18 @@ def summarize(payload: HomevoltPayload, now: datetime | None = None) -> Homevolt
     else:
         attributes["schedule"]["local_mode"] = schedule.get("local_mode")
 
+    next_charge = _select_next_schedule(schedule.get("schedule"), now, match_types={1})
+    next_discharge = _select_next_schedule(schedule.get("schedule"), now, match_types={2})
+    next_non_idle = _select_next_schedule(
+        schedule.get("schedule"),
+        now,
+        match_types={1, 2, 4, 5},
+    )
+
+    _inject_next_schedule(metrics, attributes["schedule"], "next_charge", next_charge)
+    _inject_next_schedule(metrics, attributes["schedule"], "next_discharge", next_discharge)
+    _inject_next_schedule(metrics, attributes["schedule"], "next_non_idle", next_non_idle)
+
     # Error report summarization
     raw_error_report = payload.error_report
     error_report = _ensure_list(raw_error_report) if raw_error_report is not None else []
@@ -181,6 +193,68 @@ def _select_schedule(
         if start <= timestamp <= end:
             return data
     return None
+
+
+def _select_next_schedule(
+    schedule_list: Iterable[Any] | None,
+    now: datetime,
+    *,
+    match_types: set[int],
+) -> Mapping[str, Any] | None:
+    entries = _ensure_list(schedule_list)
+    timestamp = now.timestamp()
+    next_entry: Mapping[str, Any] | None = None
+    next_start: float | None = None
+
+    for entry in entries:
+        data = _ensure_mapping(entry)
+        entry_type = data.get("type")
+        if entry_type not in match_types:
+            continue
+        start = _as_float(data.get("from"))
+        if start is None:
+            continue
+        if start <= timestamp:
+            continue
+        if next_start is None or start < next_start:
+            next_start = start
+            next_entry = data
+
+    return next_entry
+
+
+def _inject_next_schedule(
+    metrics: dict[str, Any],
+    schedule_attributes: dict[str, Any],
+    prefix: str,
+    entry: Mapping[str, Any] | None,
+) -> None:
+    if not entry:
+        metrics[f"{prefix}_start"] = None
+        metrics[f"{prefix}_end"] = None
+        metrics[f"{prefix}_state"] = None
+        return
+
+    start_ts = _as_float(entry.get("from"))
+    end_ts = _as_float(entry.get("to"))
+    schedule_type = SCHEDULE_TYPE_LABELS.get(entry.get("type"))
+    params = _ensure_mapping(entry.get("params"))
+    setpoint = _as_float(params.get("setpoint"))
+
+    start_dt = datetime.fromtimestamp(start_ts, tz=timezone.utc) if start_ts is not None else None
+    end_dt = datetime.fromtimestamp(end_ts, tz=timezone.utc) if end_ts is not None else None
+
+    metrics[f"{prefix}_start"] = start_dt
+    metrics[f"{prefix}_end"] = end_dt
+    metrics[f"{prefix}_state"] = schedule_type
+    schedule_attributes[prefix] = {
+        "id": entry.get("id"),
+        "type": entry.get("type"),
+        "state": schedule_type,
+        "from": entry.get("from"),
+        "to": entry.get("to"),
+        "setpoint": setpoint,
+    }
 
 
 def _sensor_by_index(sensors: Iterable[Any], index: int) -> Mapping[str, Any]:

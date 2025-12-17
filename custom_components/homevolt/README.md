@@ -31,3 +31,21 @@ When developing in this repository, the devcontainer-managed Home Assistant inst
 - Use `binary_sensor.homevolt_problem` for alerting/automations: it turns on if any warning or error is active.
 - Check `sensor.homevolt_health` for severity (`ok`/`warning`/`error`/`unknown`) and counts in attributes.
 - Per-subsystem problem sensors (diagnostic) help narrow down which area is affected; see the Homevolt device page to review subsystem-specific active items.
+
+### Tracking usable capacity (aging)
+
+If you charge to (near) 100% SOC a few times a week, the best practical “capacity over time” signal is the module energy that remains when full:
+
+- `sensor.homevolt_battery_module_<n>_full_available_energy` (kWh): samples `Available Energy` only when module SOC is at/above the configured threshold (default `99.0%`), and otherwise holds the last sampled value.
+- `sensor.homevolt_battery_full_available_energy` (kWh): sum of modules, sampled only when all modules are full.
+
+
+To smooth this into a long-term trend, add a Home Assistant **Statistics** helper on top of one of these sensors (e.g. 30-day mean).
+
+### Seeing the next scheduled action
+
+If `/schedule.json` includes upcoming entries, Homevolt Local exposes “next schedule” helper sensors:
+
+- `sensor.homevolt_next_charge_start` (timestamp) → next `charge` entry (type `1`).
+- `sensor.homevolt_next_discharge_start` (timestamp) → next `discharge` entry (type `2`).
+- `sensor.homevolt_next_schedule_event_start` / `sensor.homevolt_next_schedule_event_type` → next non-idle entry (types `1/2/4/5`).

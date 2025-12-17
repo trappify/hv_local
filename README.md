@@ -30,6 +30,28 @@ Homevolt Local surfaces cumulative `kWh` sensors so you can drop the integration
 
 All of these sensors advertise `device_class: energy` and `state_class: total_increasing`, giving them long-term statistics automatically. After saving the Energy configuration, the existing power sensors continue to drive the live energy flow cards.
 
+## Capacity tracking (battery aging)
+
+To track usable battery capacity over time, Homevolt Local exposes “full-charge” sampled sensors that only update when a battery module is (near) full. These are useful proxies for maximum usable energy and should slowly decrease as the battery ages.
+
+- `sensor.homevolt_battery_module_<n>_full_available_energy` → sampled module capacity in `kWh` (updates only when module SOC is at/above the configured threshold; otherwise holds the last sampled value).
+- `sensor.homevolt_battery_full_available_energy` → sampled total capacity in `kWh` (sum of modules; updates only when all modules are full).
+
+For smoothing/trending, create a Home Assistant **Statistics** helper on top of these sensors (e.g. 30-day mean/median).
+
+The sampling threshold is configurable via the integration Options: **Full capacity SOC threshold** (default `99.0`).
+
+## Schedule helper sensors
+
+Homevolt schedule entries include Unix timestamps (`from`/`to`). Homevolt Local exposes extra helper sensors so you can see the next scheduled actions at a glance:
+
+- `sensor.homevolt_next_charge_start` (timestamp) → next scheduled entry with type `charge` (type `1`).
+- `sensor.homevolt_next_discharge_start` (timestamp) → next scheduled entry with type `discharge` (type `2`).
+- `sensor.homevolt_next_schedule_event_start` (timestamp) and `sensor.homevolt_next_schedule_event_type` (enum) → next non-idle schedule entry (types `1/2/4/5`).
+
+Note: schedule type mapping is inferred from the gateway payload and may change; unknown/unsupported types are surfaced as `unknown`.
+
+
 ## Installation via HACS
 
 1. In Home Assistant, go to **HACS → Integrations → … menu → Custom repositories**.

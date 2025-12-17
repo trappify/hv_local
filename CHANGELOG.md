@@ -8,6 +8,15 @@
 ## 0.0.5
 - Adjust grid frequency display to show two decimal places while keeping raw values unchanged.
 
+## 0.0.6
+- Added full-charge capacity sampling sensors (per-module and total) to track usable battery energy at ~100% SOC over time; configurable SOC threshold via Options.
+
+## 0.0.7
+- Default SOC threshold lowered to `99.0%` for full-charge capacity sampling sensors.
+
+## 0.0.8
+- Added schedule helper sensors: next charge/discharge start timestamps plus a generic “next schedule event” timestamp/type.
+
 ## 0.0.3
 - Added repository branding: new icon (`icon.png`) and logo (`logo.png`) generated from hv_hacs_icon.png for HACS display.
 
