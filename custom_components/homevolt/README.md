@@ -36,8 +36,8 @@ When developing in this repository, the devcontainer-managed Home Assistant inst
 
 If you charge to (near) 100% SOC a few times a week, the best practical “capacity over time” signal is the module energy that remains when full:
 
-- `sensor.homevolt_battery_module_<n>_full_available_energy` (kWh): samples `Available Energy` only when module SOC is at/above the configured threshold (default `99.0%`), and otherwise holds the last sampled value.
-- `sensor.homevolt_battery_full_available_energy` (kWh): sum of modules, sampled only when all modules are full.
+- `sensor.homevolt_battery_module_<n>_full_available_energy` (kWh): samples `Available Energy` once when module SOC crosses the configured threshold (default `99.0%`), then holds the value until SOC drops below the threshold.
+- `sensor.homevolt_battery_full_available_energy` (kWh): sum of modules, sampled once when all modules cross the threshold, then holds until any module drops below.
 
 
 To smooth this into a long-term trend, add a Home Assistant **Statistics** helper on top of one of these sensors (e.g. 30-day mean).

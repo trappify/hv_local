@@ -34,8 +34,8 @@ All of these sensors advertise `device_class: energy` and `state_class: total_in
 
 To track usable battery capacity over time, Homevolt Local exposes “full-charge” sampled sensors that only update when a battery module is (near) full. These are useful proxies for maximum usable energy and should slowly decrease as the battery ages.
 
-- `sensor.homevolt_battery_module_<n>_full_available_energy` → sampled module capacity in `kWh` (updates only when module SOC is at/above the configured threshold; otherwise holds the last sampled value).
-- `sensor.homevolt_battery_full_available_energy` → sampled total capacity in `kWh` (sum of modules; updates only when all modules are full).
+- `sensor.homevolt_battery_module_<n>_full_available_energy` → sampled module capacity in `kWh` (updates once when module SOC crosses the configured threshold, then holds until SOC drops below the threshold).
+- `sensor.homevolt_battery_full_available_energy` → sampled total capacity in `kWh` (sum of modules; updates once when all modules cross the threshold, then holds until any module drops below).
 
 For smoothing/trending, create a Home Assistant **Statistics** helper on top of these sensors (e.g. 30-day mean/median).
 
@@ -46,7 +46,7 @@ The sampling threshold is configurable via the integration Options: **Full capac
 Homevolt schedule entries include Unix timestamps (`from`/`to`). Homevolt Local exposes extra helper sensors so you can see the next scheduled actions at a glance:
 
 - `sensor.homevolt_next_charge_start` (timestamp) → next scheduled entry with type `charge` (type `1`).
-- `sensor.homevolt_next_discharge_start` (timestamp) → next scheduled entry with type `discharge` (type `2`).
+- `sensor.homevolt_next_discharge_start` (timestamp) → next scheduled discharge entry (types `2/4/5`).
 - `sensor.homevolt_next_schedule_event_start` (timestamp) and `sensor.homevolt_next_schedule_event_type` (enum) → next non-idle schedule entry (types `1/2/4/5`).
 
 Note: schedule type mapping is inferred from the gateway payload and may change; unknown/unsupported types are surfaced as `unknown`.
@@ -88,7 +88,17 @@ This repository still contains the Home Assistant devcontainer/template scaffold
 3. `pytest`
 4. `python3 scripts/ha_manager.py start` (automatically installs HACS, assigns a free port, and seeds default credentials `devbox/devbox`).
 
-The dev container bind-mounts `custom_components/homevolt` into `/config/custom_components/homevolt`, so restarting Home Assistant via `python3 scripts/ha_manager.py restart` picks up changes immediately.
+The dev container bind-mounts `custom_components/homevolt` into `/config/custom_components/homevolt`, so restarting Home Assistant via `python3 scripts/ha_manager.py restart` picks up changes immediately. The container runs as your host UID/GID using `HA_UID`/`HA_GID` in `.env` (auto-populated by the helper scripts) so files written by Home Assistant stay user-owned; if you run `docker compose` manually, make sure those values are set.
+
+### Live integration checks (optional)
+
+When a real Homevolt gateway is connected, you can run live tests against the Home Assistant REST API. The live suite runs automatically when `HA_URL` and `HA_TOKEN` are set.
+
+```
+HA_LIVE_TESTS=1 HA_URL=http://localhost:8124 HA_TOKEN=... pytest -m live
+```
+
+Set `HA_VERIFY_SSL=false` if you use HTTPS with a self-signed certificate.
 
 ## Support & issues
 

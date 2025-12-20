@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -45,6 +46,8 @@ def main() -> None:
     env_manager = EnvManager(REPO_ROOT / ".env")
     env_manager.load()
     env_manager.ensure("HOST_HA_PORT", lambda: "auto")
+    env_manager.ensure("HA_UID", lambda: str(os.getuid()))
+    env_manager.ensure("HA_GID", lambda: str(os.getgid()))
 
 
 if __name__ == "__main__":

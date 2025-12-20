@@ -544,6 +544,7 @@ class HomevoltFullEnergyModuleSensor(
         self._attr_name = description.name
         self._entry = entry
         self._last_sample: float | None = None
+        self._was_full = False
 
     async def async_added_to_hass(self) -> None:
         """Restore the last stored value after restarts."""
@@ -571,11 +572,12 @@ class HomevoltFullEnergyModuleSensor(
         if not module:
             return self._last_sample
 
-        self._last_sample = sample_when_full(
+        self._last_sample, self._was_full = sample_when_full(
             current_value=module.get("energy_available"),
             soc=module.get("soc"),
             threshold=self._full_threshold,
             previous_value=self._last_sample,
+            was_full=self._was_full,
         )
         return self._last_sample
 
@@ -634,6 +636,7 @@ class HomevoltFullEnergyTotalSensor(
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_suggested_display_precision = 2
         self._last_sample: float | None = None
+        self._was_full = False
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -651,10 +654,11 @@ class HomevoltFullEnergyTotalSensor(
             return self._last_sample
 
         modules = self.coordinator.data.attributes.get("battery", {}).get("modules", [])
-        self._last_sample = sample_total_when_full(
+        self._last_sample, self._was_full = sample_total_when_full(
             modules=modules,
             threshold=self._full_threshold,
             previous_value=self._last_sample,
+            was_full=self._was_full,
         )
         return self._last_sample
 

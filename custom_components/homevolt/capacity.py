@@ -18,13 +18,22 @@ def sample_when_full(
     soc: float | None,
     threshold: float,
     previous_value: float | None,
-) -> float | None:
-    """Return the latest value only when SOC is full; otherwise return the previous."""
+    was_full: bool,
+) -> tuple[float | None, bool]:
+    """Return the latest value once per full cycle and updated full state."""
+    if soc is None:
+        return previous_value, was_full
+
+    if not is_full(soc, threshold):
+        return previous_value, False
+
+    if was_full:
+        return previous_value, True
+
     if current_value is None:
-        return previous_value
-    if is_full(soc, threshold):
-        return current_value
-    return previous_value
+        return previous_value, False
+
+    return current_value, True
 
 
 def sample_total_when_full(
@@ -32,10 +41,11 @@ def sample_total_when_full(
     modules: Sequence[Mapping[str, Any]],
     threshold: float,
     previous_value: float | None,
-) -> float | None:
-    """Return summed module energy when all modules are full; otherwise keep previous."""
+    was_full: bool,
+) -> tuple[float | None, bool]:
+    """Return summed module energy once per full cycle and updated full state."""
     if not modules:
-        return previous_value
+        return previous_value, False
 
     module_socs: list[float] = []
     module_energy: list[float] = []
@@ -44,11 +54,14 @@ def sample_total_when_full(
         soc = module.get("soc")
         energy = module.get("energy_available")
         if not isinstance(soc, (int, float)) or not isinstance(energy, (int, float)):
-            return previous_value
+            return previous_value, was_full
         module_socs.append(float(soc))
         module_energy.append(float(energy))
 
     if not all(is_full(soc, threshold) for soc in module_socs):
-        return previous_value
+        return previous_value, False
 
-    return round(sum(module_energy), 2)
+    if was_full:
+        return previous_value, True
+
+    return round(sum(module_energy), 2), True

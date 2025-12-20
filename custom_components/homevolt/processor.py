@@ -139,7 +139,7 @@ def summarize(payload: HomevoltPayload, now: datetime | None = None) -> Homevolt
         attributes["schedule"]["local_mode"] = schedule.get("local_mode")
 
     next_charge = _select_next_schedule(schedule.get("schedule"), now, match_types={1})
-    next_discharge = _select_next_schedule(schedule.get("schedule"), now, match_types={2})
+    next_discharge = _select_next_schedule(schedule.get("schedule"), now, match_types={2, 4, 5})
     next_non_idle = _select_next_schedule(
         schedule.get("schedule"),
         now,

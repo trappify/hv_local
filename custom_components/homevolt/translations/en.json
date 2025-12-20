@@ -24,9 +24,11 @@
     "step": {
       "init": {
         "title": "Homevolt options",
+        "description": "Option changes take effect after reloading the integration.",
         "data": {
           "scan_interval": "Refresh interval (seconds)",
-          "verify_ssl": "Verify SSL certificates"
+          "verify_ssl": "Verify SSL certificates",
+          "full_capacity_soc_threshold": "Full capacity SOC threshold (%)"
         }
       }
     }

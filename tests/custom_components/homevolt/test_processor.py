@@ -182,3 +182,20 @@ def test_summarize_populates_next_schedule_events() -> None:
     assert summary.metrics["next_discharge_start"] == datetime.fromtimestamp(now_ts + 300, tz=timezone.utc)
     assert summary.metrics["next_non_idle_state"] == "discharge"
     assert summary.metrics["next_non_idle_start"] == datetime.fromtimestamp(now_ts + 300, tz=timezone.utc)
+
+
+def test_next_discharge_includes_grid_modes() -> None:
+    now = datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc)
+    now_ts = int(now.timestamp())
+    schedule = {
+        "local_mode": False,
+        "schedule": [
+            {"id": 1, "from": now_ts + 300, "to": now_ts + 900, "type": 4, "params": {"setpoint": 0}},
+            {"id": 2, "from": now_ts + 1200, "to": now_ts + 1800, "type": 5, "params": {"setpoint": 0}},
+        ],
+    }
+    payload = HomevoltPayload(status={}, ems={}, schedule=schedule)
+    summary = summarize(payload, now)
+
+    assert summary.metrics["next_discharge_state"] == "grid_discharge"
+    assert summary.metrics["next_discharge_start"] == datetime.fromtimestamp(now_ts + 300, tz=timezone.utc)

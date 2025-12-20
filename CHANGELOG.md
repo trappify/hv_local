@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.9
+- Full-charge capacity sampling now captures once per full cycle, preventing repeated updates while SOC stays above the threshold.
+- `next_discharge_start` now treats schedule types `4`/`5` (grid discharge/cycle) as discharge events.
+- Dev container runs Home Assistant as the host UID/GID via `.env` to avoid root-owned files in bind mounts.
+
 ## 0.0.4
 - Added device registry support so all sensors attach to a single Homevolt device with stable identifiers and config URL; default device name set to `Homevolt`.
 - Polled `/error_report.json` to surface health/diagnostic signals: overall health sensor, overall problem binary sensor, and per-subsystem problem sensors with active error details.

@@ -21,6 +21,9 @@ packages = ["ha_template"]
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "-ra"
+markers = [
+  "live: integration checks against a running Home Assistant instance",
+]
 pythonpath = [
   "."
 ]

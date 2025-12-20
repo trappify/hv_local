@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from ha_template.env import EnvManager
@@ -92,6 +93,8 @@ def test_manager_start_prepares_environment(tmp_path):
     assert docker.up_calls == [False]
     assert user_setup.user_calls
     assert "HOST_HA_PORT=9001" in (repo / ".env").read_text()
+    assert env_manager.get("HA_UID") == str(os.getuid())
+    assert env_manager.get("HA_GID") == str(os.getgid())
 
 
 def test_manager_autostart_skips_if_running(tmp_path):

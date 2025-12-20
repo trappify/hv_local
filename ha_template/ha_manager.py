@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 
@@ -14,6 +15,8 @@ from .user_setup import UserSetup
 DEFAULT_ENV = {
     "HA_CONTAINER_NAME": "ha_template",
     "HOST_HA_PORT": "auto",
+    "HA_UID": "auto",
+    "HA_GID": "auto",
     "TZ": "UTC",
     "DEFAULT_HA_USERNAME": "devbox",
     "DEFAULT_HA_PASSWORD": "devbox",
@@ -49,7 +52,11 @@ class HomeAssistantManager:
             shutil.copy(self.repo_root / ".env.example", self.env_path)
         self.env_manager.load()
         for key, value in DEFAULT_ENV.items():
+            if key in {"HA_UID", "HA_GID"}:
+                continue
             self.env_manager.ensure(key, lambda v=value: v)
+        self.env_manager.ensure("HA_UID", lambda: str(os.getuid()))
+        self.env_manager.ensure("HA_GID", lambda: str(os.getgid()))
         self._ensure_port()
 
     def _ensure_port(self) -> None:
