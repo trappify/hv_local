@@ -37,6 +37,11 @@ To track usable battery capacity over time, Homevolt Local exposes “full-charg
 - `sensor.homevolt_battery_module_<n>_full_available_energy` → sampled module capacity in `kWh` (updates once when module SOC crosses the configured threshold, then holds until SOC drops below the threshold).
 - `sensor.homevolt_battery_full_available_energy` → sampled total capacity in `kWh` (sum of modules; updates once when all modules cross the threshold, then holds until any module drops below).
 
+State-of-health sensors turn those samples into a percentage using a baseline (auto-max by default, or a manual usable kWh if configured in Options). Set **SoH baseline strategy** to `manual` and enter your usable capacity in kWh when you want an absolute baseline.
+
+- `sensor.homevolt_battery_state_of_health` → total SoH (% of max observed full sample).
+- `sensor.homevolt_battery_module_<n>_state_of_health` → per-module SoH (% of max observed full sample).
+
 For smoothing/trending, create a Home Assistant **Statistics** helper on top of these sensors (e.g. 30-day mean/median).
 
 The sampling threshold is configurable via the integration Options: **Full capacity SOC threshold** (default `99.0`).
@@ -90,12 +95,12 @@ This repository still contains the Home Assistant devcontainer/template scaffold
 
 The dev container bind-mounts `custom_components/homevolt` into `/config/custom_components/homevolt`, so restarting Home Assistant via `python3 scripts/ha_manager.py restart` picks up changes immediately. The container runs as your host UID/GID using `HA_UID`/`HA_GID` in `.env` (auto-populated by the helper scripts) so files written by Home Assistant stay user-owned; if you run `docker compose` manually, make sure those values are set.
 
-### Live integration checks (optional)
+### Live integration checks
 
-When a real Homevolt gateway is connected, you can run live tests against the Home Assistant REST API. The live suite runs automatically when `HA_URL` and `HA_TOKEN` are set.
+When a real Homevolt gateway is connected, you can run live tests against the Home Assistant REST API. The live suite runs automatically and requires `HA_URL` and `HA_TOKEN` to be set.
 
 ```
-HA_LIVE_TESTS=1 HA_URL=http://localhost:8124 HA_TOKEN=... pytest -m live
+HA_URL=http://localhost:8124 HA_TOKEN=... pytest -m live
 ```
 
 Set `HA_VERIFY_SSL=false` if you use HTTPS with a self-signed certificate.

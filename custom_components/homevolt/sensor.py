@@ -28,13 +28,22 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .capacity import sample_total_when_full, sample_when_full
+from .capacity import (
+    calculate_soh,
+    sample_total_when_full,
+    sample_when_full,
+    select_baseline,
+    update_auto_max_baseline,
+)
 from .const import (
     CONF_FULL_CAPACITY_SOC_THRESHOLD,
+    CONF_SOH_BASELINE_KWH,
+    CONF_SOH_BASELINE_STRATEGY,
     CONF_USE_HTTPS,
     DEFAULT_FULL_CAPACITY_SOC_THRESHOLD,
     DEFAULT_NAME,
     DEFAULT_PORT,
+    DEFAULT_SOH_BASELINE_STRATEGY,
     DEFAULT_USE_HTTPS,
     DOMAIN,
 )
@@ -278,6 +287,13 @@ def _module_flags_as_text(data: HomevoltCoordinatorData, index: int, key: str) -
     return ", ".join(str(flag) for flag in flags)
 
 
+def _safe_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -365,19 +381,43 @@ async def async_setup_entry(
                 name=f"Homevolt Battery Module {number} Alarms",
                 value_fn=lambda data, i=index: _module_flags_as_text(data, i, "alarm_flags"),
             ),
+            HomevoltSensorEntityDescription(
+                key=f"battery_module_{number}_state_of_health",
+                name=f"Homevolt Battery Module {number} State of Health",
+                native_unit_of_measurement=PERCENTAGE,
+                device_class=SensorDeviceClass.BATTERY,
+                state_class=SensorStateClass.MEASUREMENT,
+                suggested_display_precision=1,
+                value_fn=lambda data: None,
+            ),
         )
-        module_entities.extend(
-            (
-                HomevoltFullEnergyModuleSensor(
-                    module_index=index,
-                    full_threshold=full_threshold,
-                    coordinator=coordinator,
-                    entry=entry,
-                    entry_id=entry.entry_id,
-                    description=description,
+        for description in module_descriptions:
+            if description.key.endswith("_full_energy_available"):
+                module_entities.append(
+                    HomevoltFullEnergyModuleSensor(
+                        module_index=index,
+                        full_threshold=full_threshold,
+                        coordinator=coordinator,
+                        entry=entry,
+                        entry_id=entry.entry_id,
+                        description=description,
+                    )
                 )
-                if description.key.endswith("_full_energy_available")
-                else HomevoltModuleSensor(
+                continue
+            if description.key.endswith("_state_of_health"):
+                module_entities.append(
+                    HomevoltSohModuleSensor(
+                        module_index=index,
+                        full_threshold=full_threshold,
+                        coordinator=coordinator,
+                        entry=entry,
+                        entry_id=entry.entry_id,
+                        description=description,
+                    )
+                )
+                continue
+            module_entities.append(
+                HomevoltModuleSensor(
                     module_index=index,
                     coordinator=coordinator,
                     entry=entry,
@@ -385,13 +425,19 @@ async def async_setup_entry(
                     description=description,
                 )
             )
-            for description in module_descriptions
-        )
 
     total_entities: list[SensorEntity] = []
     if modules:
         total_entities.append(
             HomevoltFullEnergyTotalSensor(
+                coordinator=coordinator,
+                entry=entry,
+                entry_id=entry.entry_id,
+                full_threshold=full_threshold,
+            )
+        )
+        total_entities.append(
+            HomevoltSohTotalSensor(
                 coordinator=coordinator,
                 entry=entry,
                 entry_id=entry.entry_id,
@@ -671,6 +717,247 @@ class HomevoltFullEnergyTotalSensor(
             "soc_threshold": self._full_threshold,
             "module_count": len(modules),
         }
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        host = self._entry.data.get(CONF_HOST)
+        port = self._entry.data.get(CONF_PORT, DEFAULT_PORT)
+        use_https = self._entry.data.get(CONF_USE_HTTPS, DEFAULT_USE_HTTPS)
+        configuration_url = None
+        if host:
+            scheme = "https" if use_https else "http"
+            configuration_url = f"{scheme}://{host}:{port}"
+
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry.unique_id or self._entry.entry_id)},
+            name=DEFAULT_NAME,
+            manufacturer="Homevolt",
+            model="Battery Gateway",
+            configuration_url=configuration_url,
+        )
+
+
+class HomevoltSohModuleSensor(
+    CoordinatorEntity[HomevoltDataUpdateCoordinator],
+    RestoreSensor,
+):
+    """Estimate module state-of-health using configurable baseline strategy."""
+
+    entity_description: HomevoltSensorEntityDescription
+
+    def __init__(
+        self,
+        *,
+        module_index: int,
+        full_threshold: float,
+        coordinator: HomevoltDataUpdateCoordinator,
+        entry: ConfigEntry,
+        entry_id: str,
+        description: HomevoltSensorEntityDescription,
+    ) -> None:
+        super().__init__(coordinator)
+        self.entity_description = description
+        self._module_index = module_index
+        self._full_threshold = float(full_threshold)
+        self._attr_unique_id = f"{entry_id}_{description.key}"
+        self._attr_name = description.name
+        self._attr_native_unit_of_measurement = PERCENTAGE
+        self._attr_device_class = SensorDeviceClass.BATTERY
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_suggested_display_precision = 1
+        self._entry = entry
+        self._last_sample: float | None = None
+        self._auto_baseline: float | None = None
+        self._baseline: float | None = None
+        self._last_soh: float | None = None
+        self._was_full = False
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if not last_state:
+            return
+        self._last_soh = _safe_float(last_state.state)
+        if last_state.attributes.get("baseline_strategy") in {"auto", "auto_max"}:
+            self._auto_baseline = _safe_float(last_state.attributes.get("baseline_full_available_energy"))
+        self._baseline = _safe_float(last_state.attributes.get("baseline_full_available_energy"))
+        self._last_sample = _safe_float(last_state.attributes.get("last_sampled_full_available_energy"))
+
+    def _module_data(self) -> dict[str, Any] | None:
+        if not self.coordinator.data:
+            return None
+        modules = self.coordinator.data.attributes.get("battery", {}).get("modules", [])
+        if self._module_index < len(modules):
+            return modules[self._module_index]
+        return None
+
+    @property
+    def native_value(self) -> float | None:
+        module = self._module_data()
+        if not module:
+            return self._last_soh
+
+        strategy = self._entry.options.get(
+            CONF_SOH_BASELINE_STRATEGY,
+            DEFAULT_SOH_BASELINE_STRATEGY,
+        )
+        manual_baseline = self._entry.options.get(CONF_SOH_BASELINE_KWH)
+        manual_baseline = _safe_float(manual_baseline)
+        module_count = 0
+        if self.coordinator.data:
+            module_count = len(self.coordinator.data.attributes.get("battery", {}).get("modules", []))
+
+        self._last_sample, self._was_full = sample_when_full(
+            current_value=module.get("energy_available"),
+            soc=module.get("soc"),
+            threshold=self._full_threshold,
+            previous_value=self._last_sample,
+            was_full=self._was_full,
+        )
+        if strategy == "auto":
+            self._auto_baseline = update_auto_max_baseline(
+                current_sample=self._last_sample,
+                previous_baseline=self._auto_baseline,
+            )
+        self._baseline = select_baseline(
+            strategy=strategy,
+            manual_baseline=manual_baseline,
+            auto_baseline=self._auto_baseline,
+            module_count=module_count,
+        )
+        self._last_soh = calculate_soh(current_sample=self._last_sample, baseline=self._baseline)
+        return self._last_soh
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        module = self._module_data() or {}
+        strategy = self._entry.options.get(
+            CONF_SOH_BASELINE_STRATEGY,
+            DEFAULT_SOH_BASELINE_STRATEGY,
+        )
+        manual_baseline = _safe_float(self._entry.options.get(CONF_SOH_BASELINE_KWH))
+        attributes = {
+            "baseline_strategy": strategy,
+            "baseline_full_available_energy": self._baseline,
+            "last_sampled_full_available_energy": self._last_sample,
+            "soc_threshold": self._full_threshold,
+            "current_soc": module.get("soc"),
+            "current_energy_available": module.get("energy_available"),
+        }
+        if strategy == "manual":
+            attributes["manual_baseline_kwh"] = manual_baseline
+        return attributes
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        host = self._entry.data.get(CONF_HOST)
+        port = self._entry.data.get(CONF_PORT, DEFAULT_PORT)
+        use_https = self._entry.data.get(CONF_USE_HTTPS, DEFAULT_USE_HTTPS)
+        configuration_url = None
+        if host:
+            scheme = "https" if use_https else "http"
+            configuration_url = f"{scheme}://{host}:{port}"
+
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry.unique_id or self._entry.entry_id)},
+            name=DEFAULT_NAME,
+            manufacturer="Homevolt",
+            model="Battery Gateway",
+            configuration_url=configuration_url,
+        )
+
+
+class HomevoltSohTotalSensor(
+    CoordinatorEntity[HomevoltDataUpdateCoordinator],
+    RestoreSensor,
+):
+    """Estimate total state-of-health using configurable baseline strategy."""
+
+    def __init__(
+        self,
+        *,
+        coordinator: HomevoltDataUpdateCoordinator,
+        entry: ConfigEntry,
+        entry_id: str,
+        full_threshold: float,
+    ) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._full_threshold = float(full_threshold)
+        self._attr_unique_id = f"{entry_id}_battery_state_of_health"
+        self._attr_name = "Homevolt Battery State of Health"
+        self._attr_native_unit_of_measurement = PERCENTAGE
+        self._attr_device_class = SensorDeviceClass.BATTERY
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_suggested_display_precision = 1
+        self._last_sample: float | None = None
+        self._auto_baseline: float | None = None
+        self._baseline: float | None = None
+        self._last_soh: float | None = None
+        self._was_full = False
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if not last_state:
+            return
+        self._last_soh = _safe_float(last_state.state)
+        if last_state.attributes.get("baseline_strategy") in {"auto", "auto_max"}:
+            self._auto_baseline = _safe_float(last_state.attributes.get("baseline_full_available_energy"))
+        self._baseline = _safe_float(last_state.attributes.get("baseline_full_available_energy"))
+        self._last_sample = _safe_float(last_state.attributes.get("last_sampled_full_available_energy"))
+
+    @property
+    def native_value(self) -> float | None:
+        if not self.coordinator.data:
+            return self._last_soh
+
+        strategy = self._entry.options.get(
+            CONF_SOH_BASELINE_STRATEGY,
+            DEFAULT_SOH_BASELINE_STRATEGY,
+        )
+        manual_baseline = _safe_float(self._entry.options.get(CONF_SOH_BASELINE_KWH))
+
+        modules = self.coordinator.data.attributes.get("battery", {}).get("modules", [])
+        self._last_sample, self._was_full = sample_total_when_full(
+            modules=modules,
+            threshold=self._full_threshold,
+            previous_value=self._last_sample,
+            was_full=self._was_full,
+        )
+        if strategy == "auto":
+            self._auto_baseline = update_auto_max_baseline(
+                current_sample=self._last_sample,
+                previous_baseline=self._auto_baseline,
+            )
+        self._baseline = select_baseline(
+            strategy=strategy,
+            manual_baseline=manual_baseline,
+            auto_baseline=self._auto_baseline,
+        )
+        self._last_soh = calculate_soh(current_sample=self._last_sample, baseline=self._baseline)
+        return self._last_soh
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        modules = []
+        if self.coordinator.data:
+            modules = self.coordinator.data.attributes.get("battery", {}).get("modules", [])
+        strategy = self._entry.options.get(
+            CONF_SOH_BASELINE_STRATEGY,
+            DEFAULT_SOH_BASELINE_STRATEGY,
+        )
+        manual_baseline = _safe_float(self._entry.options.get(CONF_SOH_BASELINE_KWH))
+        attributes = {
+            "baseline_strategy": strategy,
+            "baseline_full_available_energy": self._baseline,
+            "last_sampled_full_available_energy": self._last_sample,
+            "soc_threshold": self._full_threshold,
+            "module_count": len(modules),
+        }
+        if strategy == "manual":
+            attributes["manual_baseline_kwh"] = manual_baseline
+        return attributes
 
     @property
     def device_info(self) -> DeviceInfo:

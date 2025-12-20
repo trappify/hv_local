@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.11
+- Added SoH baseline options: auto-max or manual usable capacity (kWh).
+
+## 0.0.10
+- Added state-of-health sensors that use an auto-max baseline from full-charge samples (total and per-module).
+
 ## 0.0.9
 - Full-charge capacity sampling now captures once per full cycle, preventing repeated updates while SOC stays above the threshold.
 - `next_discharge_start` now treats schedule types `4`/`5` (grid discharge/cycle) as discharge events.

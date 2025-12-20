@@ -14,13 +14,21 @@ HA_URL = os.getenv("HA_URL", "").rstrip("/")
 HA_TOKEN = os.getenv("HA_TOKEN", "")
 VERIFY_SSL = os.getenv("HA_VERIFY_SSL", "true").lower() not in {"0", "false", "no"}
 
-RUN_LIVE = bool(HA_URL and HA_TOKEN)
 
-if not RUN_LIVE:
-    pytest.skip(
-        "Set HA_URL and HA_TOKEN to run live checks.",
-        allow_module_level=True,
-    )
+@pytest.fixture(autouse=True)
+def _require_live_config() -> None:
+    missing = []
+    if not HA_URL:
+        missing.append("HA_URL")
+    if not HA_TOKEN:
+        missing.append("HA_TOKEN")
+    if missing:
+        pytest.fail(
+            "Missing required environment variables for live checks: "
+            + ", ".join(missing)
+            + ". Set them before running pytest.",
+            pytrace=False,
+        )
 
 
 def _api_get(path: str) -> Any:

@@ -65,3 +65,46 @@ def sample_total_when_full(
         return previous_value, True
 
     return round(sum(module_energy), 2), True
+
+
+def update_auto_max_baseline(
+    *,
+    current_sample: float | None,
+    previous_baseline: float | None,
+) -> float | None:
+    """Return the highest observed full sample for auto-max baselines."""
+    if current_sample is None or current_sample <= 0:
+        return previous_baseline
+    if previous_baseline is None or current_sample > previous_baseline:
+        return float(current_sample)
+    return previous_baseline
+
+
+def select_baseline(
+    *,
+    strategy: str,
+    manual_baseline: float | None,
+    auto_baseline: float | None,
+    module_count: int | None = None,
+) -> float | None:
+    """Select the baseline based on strategy, with optional per-module scaling."""
+    if strategy == "manual":
+        if manual_baseline is None or manual_baseline <= 0:
+            return None
+        if module_count:
+            return manual_baseline / module_count
+        return manual_baseline
+    return auto_baseline
+
+
+def calculate_soh(
+    *,
+    current_sample: float | None,
+    baseline: float | None,
+) -> float | None:
+    """Return state-of-health percentage based on full-sample energy."""
+    if current_sample is None or baseline is None:
+        return None
+    if current_sample < 0 or baseline <= 0:
+        return None
+    return round((current_sample / baseline) * 100, 1)

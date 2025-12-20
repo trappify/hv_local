@@ -22,10 +22,13 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .api import HomevoltAuthError, HomevoltClient, HomevoltConnectionError
 from .const import (
     CONF_FULL_CAPACITY_SOC_THRESHOLD,
+    CONF_SOH_BASELINE_KWH,
+    CONF_SOH_BASELINE_STRATEGY,
     CONF_USE_HTTPS,
     DEFAULT_FULL_CAPACITY_SOC_THRESHOLD,
     DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SOH_BASELINE_STRATEGY,
     DEFAULT_USE_HTTPS,
     DEFAULT_VERIFY_SSL,
     DOMAIN,
@@ -122,6 +125,10 @@ class HomevoltOptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
+        baseline_kwh = self.config_entry.options.get(CONF_SOH_BASELINE_KWH)
+        if baseline_kwh is None:
+            baseline_kwh = 0.0
+
         options = {
             CONF_SCAN_INTERVAL: self.config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
             CONF_VERIFY_SSL: self.config_entry.options.get(
@@ -131,6 +138,11 @@ class HomevoltOptionsFlowHandler(config_entries.OptionsFlow):
                 CONF_FULL_CAPACITY_SOC_THRESHOLD,
                 DEFAULT_FULL_CAPACITY_SOC_THRESHOLD,
             ),
+            CONF_SOH_BASELINE_STRATEGY: self.config_entry.options.get(
+                CONF_SOH_BASELINE_STRATEGY,
+                DEFAULT_SOH_BASELINE_STRATEGY,
+            ),
+            CONF_SOH_BASELINE_KWH: baseline_kwh,
         }
 
         data_schema = vol.Schema(
@@ -147,6 +159,14 @@ class HomevoltOptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_FULL_CAPACITY_SOC_THRESHOLD,
                     default=options[CONF_FULL_CAPACITY_SOC_THRESHOLD],
                 ): vol.All(vol.Coerce(float), vol.Range(min=50.0, max=100.0)),
+                vol.Required(
+                    CONF_SOH_BASELINE_STRATEGY,
+                    default=options[CONF_SOH_BASELINE_STRATEGY],
+                ): vol.In(["auto", "manual"]),
+                vol.Optional(
+                    CONF_SOH_BASELINE_KWH,
+                    default=options[CONF_SOH_BASELINE_KWH],
+                ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=200.0)),
             }
         )
 

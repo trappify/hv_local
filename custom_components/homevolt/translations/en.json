@@ -24,11 +24,13 @@
     "step": {
       "init": {
         "title": "Homevolt options",
-        "description": "Option changes take effect after reloading the integration.",
+        "description": "Option changes take effect after reloading the integration. Full capacity SOC threshold supports decimals (e.g. 99.5). If using manual SoH baseline, set a usable capacity > 0.",
         "data": {
           "scan_interval": "Refresh interval (seconds)",
           "verify_ssl": "Verify SSL certificates",
-          "full_capacity_soc_threshold": "Full capacity SOC threshold (%)"
+          "full_capacity_soc_threshold": "Full capacity SOC threshold (%)",
+          "soh_baseline_strategy": "SoH baseline strategy",
+          "soh_baseline_kwh": "Usable capacity for manual SoH (kWh)"
         }
       }
     }

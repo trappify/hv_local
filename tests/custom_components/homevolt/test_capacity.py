@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
-from custom_components.homevolt.capacity import is_full, sample_total_when_full, sample_when_full
+from custom_components.homevolt.capacity import (
+    calculate_soh,
+    is_full,
+    sample_total_when_full,
+    sample_when_full,
+    select_baseline,
+    update_auto_max_baseline,
+)
 
 
 def test_is_full_threshold() -> None:
@@ -105,3 +112,36 @@ def test_sample_total_when_full_ignores_incomplete_payloads() -> None:
     )
     assert value == 10.0
     assert was_full is False
+
+
+def test_update_auto_max_baseline_tracks_highest_sample() -> None:
+    assert update_auto_max_baseline(current_sample=None, previous_baseline=None) is None
+    assert update_auto_max_baseline(current_sample=10.0, previous_baseline=None) == 10.0
+    assert update_auto_max_baseline(current_sample=9.5, previous_baseline=10.0) == 10.0
+    assert update_auto_max_baseline(current_sample=10.5, previous_baseline=10.0) == 10.5
+    assert update_auto_max_baseline(current_sample=0.0, previous_baseline=10.0) == 10.0
+
+
+def test_calculate_soh_returns_percentage() -> None:
+    assert calculate_soh(current_sample=None, baseline=10.0) is None
+    assert calculate_soh(current_sample=10.0, baseline=None) is None
+    assert calculate_soh(current_sample=-1.0, baseline=10.0) is None
+    assert calculate_soh(current_sample=10.0, baseline=0.0) is None
+    assert calculate_soh(current_sample=9.0, baseline=10.0) == 90.0
+    assert calculate_soh(current_sample=9.25, baseline=10.0) == 92.5
+
+
+def test_select_baseline_prefers_manual_when_configured() -> None:
+    assert select_baseline(strategy="manual", manual_baseline=None, auto_baseline=10.0) is None
+    assert select_baseline(strategy="manual", manual_baseline=-1.0, auto_baseline=10.0) is None
+    assert select_baseline(strategy="manual", manual_baseline=12.0, auto_baseline=10.0) == 12.0
+    assert (
+        select_baseline(
+            strategy="manual",
+            manual_baseline=12.0,
+            auto_baseline=10.0,
+            module_count=2,
+        )
+        == 6.0
+    )
+    assert select_baseline(strategy="auto", manual_baseline=12.0, auto_baseline=10.0) == 10.0
