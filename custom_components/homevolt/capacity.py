@@ -134,6 +134,17 @@ def kalman_update(
     return updated_estimate, updated_variance
 
 
+def seed_kalman_estimate(
+    *,
+    last_sample: float | None,
+    last_temperature: float | None,
+) -> tuple[float | None, float | None]:
+    """Seed the Kalman estimate from the latest full sample."""
+    if last_sample is None:
+        return None, None
+    return last_sample, temperature_variance(last_temperature)
+
+
 def select_baseline(
     *,
     strategy: str,

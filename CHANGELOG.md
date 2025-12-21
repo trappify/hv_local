@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.13
+- Seed Kalman SoH estimates from the last full sample on upgrade to avoid returning to `unknown`.
+
 ## 0.0.12
 - SoH estimation now uses a temperature-weighted Kalman filter on full-charge samples for smoother capacity tracking.
 

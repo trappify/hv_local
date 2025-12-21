@@ -33,6 +33,7 @@ from .capacity import (
     kalman_update,
     sample_total_when_full,
     sample_when_full,
+    seed_kalman_estimate,
     select_baseline,
     temperature_variance,
     update_auto_max_baseline,
@@ -794,9 +795,19 @@ class HomevoltSohModuleSensor(
         self._kalman_estimate = _safe_float(last_state.attributes.get("kalman_estimate_kwh"))
         self._kalman_variance = _safe_float(last_state.attributes.get("kalman_variance"))
         self._last_sample_temp = _safe_float(last_state.attributes.get("last_sample_temperature"))
+        if self._kalman_estimate is None and self._last_sample is not None:
+            self._kalman_estimate, self._kalman_variance = seed_kalman_estimate(
+                last_sample=self._last_sample,
+                last_temperature=self._last_sample_temp,
+            )
         self._kalman_estimate = _safe_float(last_state.attributes.get("kalman_estimate_kwh"))
         self._kalman_variance = _safe_float(last_state.attributes.get("kalman_variance"))
         self._last_sample_temp = _safe_float(last_state.attributes.get("last_sample_temperature"))
+        if self._kalman_estimate is None and self._last_sample is not None:
+            self._kalman_estimate, self._kalman_variance = seed_kalman_estimate(
+                last_sample=self._last_sample,
+                last_temperature=self._last_sample_temp,
+            )
 
     def _module_data(self) -> dict[str, Any] | None:
         if not self.coordinator.data:

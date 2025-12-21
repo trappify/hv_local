@@ -8,6 +8,7 @@ from custom_components.homevolt.capacity import (
     kalman_update,
     sample_total_when_full,
     sample_when_full,
+    seed_kalman_estimate,
     select_baseline,
     temperature_variance,
     update_auto_max_baseline,
@@ -184,3 +185,13 @@ def test_variance_to_std_handles_edges() -> None:
     assert variance_to_std(None) is None
     assert variance_to_std(-1.0) is None
     assert variance_to_std(0.0) == 0.0
+
+
+def test_seed_kalman_estimate_uses_sample() -> None:
+    estimate, variance = seed_kalman_estimate(last_sample=None, last_temperature=20.0)
+    assert estimate is None
+    assert variance is None
+
+    estimate, variance = seed_kalman_estimate(last_sample=12.2, last_temperature=20.0)
+    assert estimate == 12.2
+    assert variance is not None
