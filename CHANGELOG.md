@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.12
+- SoH estimation now uses a temperature-weighted Kalman filter on full-charge samples for smoother capacity tracking.
+
 ## 0.0.11
 - Added SoH baseline options: auto-max or manual usable capacity (kWh).
 

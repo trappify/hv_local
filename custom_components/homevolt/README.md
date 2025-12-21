@@ -39,7 +39,7 @@ If you charge to (near) 100% SOC a few times a week, the best practical “capac
 - `sensor.homevolt_battery_module_<n>_full_available_energy` (kWh): samples `Available Energy` once when module SOC crosses the configured threshold (default `99.0%`), then holds the value until SOC drops below the threshold.
 - `sensor.homevolt_battery_full_available_energy` (kWh): sum of modules, sampled once when all modules cross the threshold, then holds until any module drops below.
 
-State-of-health sensors turn those samples into a percentage using a baseline (auto-max by default, or a manual usable kWh if configured in Options). Set **SoH baseline strategy** to `manual` and enter your usable capacity in kWh when you want an absolute baseline.
+State-of-health sensors use a temperature-weighted Kalman estimate of full capacity (based on full-charge samples and module max temps) and turn it into a percentage using a baseline (auto-max by default, or a manual usable kWh if configured in Options). Set **SoH baseline strategy** to `manual` and enter your usable capacity in kWh when you want an absolute baseline.
 
 - `sensor.homevolt_battery_state_of_health` (%): total SoH vs. max observed full sample.
 - `sensor.homevolt_battery_module_<n>_state_of_health` (%): per-module SoH vs. max observed full sample.

@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any, Mapping, Sequence
+
+DEFAULT_KALMAN_PROCESS_VARIANCE = 0.0025
+DEFAULT_KALMAN_MEASUREMENT_VARIANCE = 0.04
+DEFAULT_TEMPERATURE_BAND = (15.0, 30.0)
+DEFAULT_TEMPERATURE_SCALE = 0.1
+DEFAULT_TEMPERATURE_MAX_FACTOR = 5.0
 
 
 def is_full(soc: float | None, threshold: float) -> bool:
@@ -80,6 +87,53 @@ def update_auto_max_baseline(
     return previous_baseline
 
 
+def temperature_variance(
+    temperature_c: float | None,
+    *,
+    base_variance: float = DEFAULT_KALMAN_MEASUREMENT_VARIANCE,
+    band: tuple[float, float] = DEFAULT_TEMPERATURE_BAND,
+    scale_per_degree: float = DEFAULT_TEMPERATURE_SCALE,
+    max_factor: float = DEFAULT_TEMPERATURE_MAX_FACTOR,
+) -> float:
+    """Return measurement variance scaled by temperature quality."""
+    if base_variance <= 0:
+        return 0.0
+    if temperature_c is None:
+        return base_variance * 2
+    lower, upper = band
+    penalty = 0.0
+    if temperature_c < lower:
+        penalty = lower - temperature_c
+    elif temperature_c > upper:
+        penalty = temperature_c - upper
+    factor = 1.0 + (penalty * scale_per_degree)
+    factor = min(factor, max_factor)
+    return base_variance * factor
+
+
+def kalman_update(
+    *,
+    estimate: float | None,
+    variance: float | None,
+    measurement: float | None,
+    measurement_variance: float,
+    process_variance: float = DEFAULT_KALMAN_PROCESS_VARIANCE,
+) -> tuple[float | None, float | None]:
+    """Update the 1D Kalman estimate for capacity."""
+    if measurement is None:
+        return estimate, variance
+    if measurement_variance <= 0:
+        return measurement, 0.0
+    if estimate is None or variance is None:
+        return measurement, measurement_variance
+
+    predicted_variance = variance + max(process_variance, 0.0)
+    kalman_gain = predicted_variance / (predicted_variance + measurement_variance)
+    updated_estimate = estimate + kalman_gain * (measurement - estimate)
+    updated_variance = max(0.0, (1 - kalman_gain) * predicted_variance)
+    return updated_estimate, updated_variance
+
+
 def select_baseline(
     *,
     strategy: str,
@@ -108,3 +162,10 @@ def calculate_soh(
     if current_sample < 0 or baseline <= 0:
         return None
     return round((current_sample / baseline) * 100, 1)
+
+
+def variance_to_std(variance: float | None) -> float | None:
+    """Return the standard deviation for a variance value."""
+    if variance is None or variance < 0:
+        return None
+    return round(math.sqrt(variance), 3)

@@ -30,10 +30,13 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .capacity import (
     calculate_soh,
+    kalman_update,
     sample_total_when_full,
     sample_when_full,
     select_baseline,
+    temperature_variance,
     update_auto_max_baseline,
+    variance_to_std,
 )
 from .const import (
     CONF_FULL_CAPACITY_SOC_THRESHOLD,
@@ -771,6 +774,12 @@ class HomevoltSohModuleSensor(
         self._baseline: float | None = None
         self._last_soh: float | None = None
         self._was_full = False
+        self._kalman_estimate: float | None = None
+        self._kalman_variance: float | None = None
+        self._last_sample_temp: float | None = None
+        self._kalman_estimate: float | None = None
+        self._kalman_variance: float | None = None
+        self._last_sample_temp: float | None = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -782,6 +791,12 @@ class HomevoltSohModuleSensor(
             self._auto_baseline = _safe_float(last_state.attributes.get("baseline_full_available_energy"))
         self._baseline = _safe_float(last_state.attributes.get("baseline_full_available_energy"))
         self._last_sample = _safe_float(last_state.attributes.get("last_sampled_full_available_energy"))
+        self._kalman_estimate = _safe_float(last_state.attributes.get("kalman_estimate_kwh"))
+        self._kalman_variance = _safe_float(last_state.attributes.get("kalman_variance"))
+        self._last_sample_temp = _safe_float(last_state.attributes.get("last_sample_temperature"))
+        self._kalman_estimate = _safe_float(last_state.attributes.get("kalman_estimate_kwh"))
+        self._kalman_variance = _safe_float(last_state.attributes.get("kalman_variance"))
+        self._last_sample_temp = _safe_float(last_state.attributes.get("last_sample_temperature"))
 
     def _module_data(self) -> dict[str, Any] | None:
         if not self.coordinator.data:
@@ -807,6 +822,7 @@ class HomevoltSohModuleSensor(
         if self.coordinator.data:
             module_count = len(self.coordinator.data.attributes.get("battery", {}).get("modules", []))
 
+        was_full = self._was_full
         self._last_sample, self._was_full = sample_when_full(
             current_value=module.get("energy_available"),
             soc=module.get("soc"),
@@ -814,18 +830,28 @@ class HomevoltSohModuleSensor(
             previous_value=self._last_sample,
             was_full=self._was_full,
         )
-        if strategy == "auto":
-            self._auto_baseline = update_auto_max_baseline(
-                current_sample=self._last_sample,
-                previous_baseline=self._auto_baseline,
+        if not was_full and self._was_full and self._last_sample is not None:
+            temp_c = _safe_float(module.get("temperature_max"))
+            measurement_variance = temperature_variance(temp_c)
+            self._kalman_estimate, self._kalman_variance = kalman_update(
+                estimate=self._kalman_estimate,
+                variance=self._kalman_variance,
+                measurement=self._last_sample,
+                measurement_variance=measurement_variance,
             )
+            self._last_sample_temp = temp_c
+            if strategy == "auto":
+                self._auto_baseline = update_auto_max_baseline(
+                    current_sample=self._last_sample,
+                    previous_baseline=self._auto_baseline,
+                )
         self._baseline = select_baseline(
             strategy=strategy,
             manual_baseline=manual_baseline,
             auto_baseline=self._auto_baseline,
             module_count=module_count,
         )
-        self._last_soh = calculate_soh(current_sample=self._last_sample, baseline=self._baseline)
+        self._last_soh = calculate_soh(current_sample=self._kalman_estimate, baseline=self._baseline)
         return self._last_soh
 
     @property
@@ -839,7 +865,11 @@ class HomevoltSohModuleSensor(
         attributes = {
             "baseline_strategy": strategy,
             "baseline_full_available_energy": self._baseline,
+            "kalman_estimate_kwh": self._kalman_estimate,
+            "kalman_variance": self._kalman_variance,
+            "kalman_std_dev": variance_to_std(self._kalman_variance),
             "last_sampled_full_available_energy": self._last_sample,
+            "last_sample_temperature": self._last_sample_temp,
             "soc_threshold": self._full_threshold,
             "current_soc": module.get("soc"),
             "current_energy_available": module.get("energy_available"),
@@ -919,23 +949,39 @@ class HomevoltSohTotalSensor(
         manual_baseline = _safe_float(self._entry.options.get(CONF_SOH_BASELINE_KWH))
 
         modules = self.coordinator.data.attributes.get("battery", {}).get("modules", [])
+        was_full = self._was_full
         self._last_sample, self._was_full = sample_total_when_full(
             modules=modules,
             threshold=self._full_threshold,
             previous_value=self._last_sample,
             was_full=self._was_full,
         )
-        if strategy == "auto":
-            self._auto_baseline = update_auto_max_baseline(
-                current_sample=self._last_sample,
-                previous_baseline=self._auto_baseline,
+        if not was_full and self._was_full and self._last_sample is not None:
+            temps = [
+                _safe_float(module.get("temperature_max"))
+                for module in modules
+                if module.get("temperature_max") is not None
+            ]
+            temp_c = max(temps) if temps else None
+            measurement_variance = temperature_variance(temp_c)
+            self._kalman_estimate, self._kalman_variance = kalman_update(
+                estimate=self._kalman_estimate,
+                variance=self._kalman_variance,
+                measurement=self._last_sample,
+                measurement_variance=measurement_variance,
             )
+            self._last_sample_temp = temp_c
+            if strategy == "auto":
+                self._auto_baseline = update_auto_max_baseline(
+                    current_sample=self._last_sample,
+                    previous_baseline=self._auto_baseline,
+                )
         self._baseline = select_baseline(
             strategy=strategy,
             manual_baseline=manual_baseline,
             auto_baseline=self._auto_baseline,
         )
-        self._last_soh = calculate_soh(current_sample=self._last_sample, baseline=self._baseline)
+        self._last_soh = calculate_soh(current_sample=self._kalman_estimate, baseline=self._baseline)
         return self._last_soh
 
     @property
@@ -951,7 +997,11 @@ class HomevoltSohTotalSensor(
         attributes = {
             "baseline_strategy": strategy,
             "baseline_full_available_energy": self._baseline,
+            "kalman_estimate_kwh": self._kalman_estimate,
+            "kalman_variance": self._kalman_variance,
+            "kalman_std_dev": variance_to_std(self._kalman_variance),
             "last_sampled_full_available_energy": self._last_sample,
+            "last_sample_temperature": self._last_sample_temp,
             "soc_threshold": self._full_threshold,
             "module_count": len(modules),
         }

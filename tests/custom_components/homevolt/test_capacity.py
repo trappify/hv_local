@@ -5,10 +5,13 @@ from __future__ import annotations
 from custom_components.homevolt.capacity import (
     calculate_soh,
     is_full,
+    kalman_update,
     sample_total_when_full,
     sample_when_full,
     select_baseline,
+    temperature_variance,
     update_auto_max_baseline,
+    variance_to_std,
 )
 
 
@@ -145,3 +148,39 @@ def test_select_baseline_prefers_manual_when_configured() -> None:
         == 6.0
     )
     assert select_baseline(strategy="auto", manual_baseline=12.0, auto_baseline=10.0) == 10.0
+
+
+def test_temperature_variance_scales_with_band() -> None:
+    base = 0.04
+    assert temperature_variance(20.0, base_variance=base) == base
+    assert temperature_variance(10.0, base_variance=base) > base
+    assert temperature_variance(35.0, base_variance=base) > base
+    assert temperature_variance(None, base_variance=base) == base * 2
+
+
+def test_kalman_update_smooths_measurements() -> None:
+    estimate, variance = kalman_update(
+        estimate=None,
+        variance=None,
+        measurement=12.0,
+        measurement_variance=0.04,
+    )
+    assert estimate == 12.0
+    assert variance == 0.04
+
+    estimate2, variance2 = kalman_update(
+        estimate=estimate,
+        variance=variance,
+        measurement=11.5,
+        measurement_variance=0.04,
+    )
+    assert estimate2 is not None
+    assert variance2 is not None
+    assert estimate2 != estimate
+    assert variance2 < (variance + 0.0025)
+
+
+def test_variance_to_std_handles_edges() -> None:
+    assert variance_to_std(None) is None
+    assert variance_to_std(-1.0) is None
+    assert variance_to_std(0.0) == 0.0
