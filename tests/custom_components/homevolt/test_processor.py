@@ -137,8 +137,8 @@ def test_summarize_populates_metrics() -> None:
     schedule_raw_attrs = summary.attributes["schedule_raw"]
     assert schedule_raw_attrs["local_mode"] == "auto"
     assert schedule_raw_attrs["count"] == 1
-    assert schedule_raw_attrs["entries"][0]["state"] == "charge"
-    assert schedule_raw_attrs["entries"][0]["setpoint"] == 3500
+    assert schedule_raw_attrs["entries"][0]["params"]["setpoint"] == 3500
+    assert "state" not in schedule_raw_attrs["entries"][0]
 
     system_attrs = summary.attributes["system"]
     assert system_attrs["warnings"] == ["temp_high"]

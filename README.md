@@ -53,7 +53,7 @@ Homevolt schedule entries include Unix timestamps (`from`/`to`). Homevolt Local 
 - `sensor.homevolt_next_charge_start` (timestamp) → next scheduled entry with type `charge` (type `1`).
 - `sensor.homevolt_next_discharge_start` (timestamp) → next scheduled discharge entry (types `2/4/5`).
 - `sensor.homevolt_next_schedule_event_start` (timestamp) and `sensor.homevolt_next_schedule_event_type` (enum) → next non-idle schedule entry (types `1/2/4/5`).
-- `sensor.homevolt_schedule_raw` (count) → exposes the full schedule list in attributes (`entries`, `local_mode`, `count`) with raw timestamps and parsed `state`/`setpoint`.
+- `sensor.homevolt_schedule_raw` (count) → exposes the full schedule list in attributes (`entries`, `local_mode`, `count`) without parsing or transformations.
 
 Note: schedule type mapping is inferred from the gateway payload and may change; unknown/unsupported types are surfaced as `unknown`.
 

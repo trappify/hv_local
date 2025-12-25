@@ -281,11 +281,6 @@ def _normalize_schedule_entries(schedule_list: Iterable[Any] | None) -> list[dic
         data = _ensure_mapping(entry)
         if not data:
             continue
-        params = _ensure_mapping(data.get("params"))
-        entry_type = data.get("type")
-        data["params"] = params
-        data["state"] = SCHEDULE_TYPE_LABELS.get(entry_type, "unknown")
-        data["setpoint"] = _as_float(params.get("setpoint"))
         entries.append(data)
     return entries
 

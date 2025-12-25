@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.15
+- Removed parsed fields from the raw schedule sensor so attributes mirror the gateway payload.
+
 ## 0.0.14
 - Added a raw schedule sensor that exposes the full schedule list (with parsed state and setpoint) in attributes.
 
