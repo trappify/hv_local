@@ -54,3 +54,4 @@ If `/schedule.json` includes upcoming entries, Homevolt Local exposes “next sc
 - `sensor.homevolt_next_charge_start` (timestamp) → next `charge` entry (type `1`).
 - `sensor.homevolt_next_discharge_start` (timestamp) → next `discharge` entry (type `2`).
 - `sensor.homevolt_next_schedule_event_start` / `sensor.homevolt_next_schedule_event_type` → next non-idle entry (types `1/2/4/5`).
+- `sensor.homevolt_schedule_raw` (count) → full schedule list in attributes (`entries`, `local_mode`, `count`) with raw timestamps and parsed `state`/`setpoint`.

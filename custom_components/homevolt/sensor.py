@@ -221,6 +221,13 @@ SENSOR_DESCRIPTIONS: tuple[HomevoltSensorEntityDescription, ...] = (
         attr_key="schedule",
     ),
     HomevoltSensorEntityDescription(
+        key="schedule_raw",
+        name="Homevolt Schedule Raw",
+        icon="mdi:calendar-text",
+        value_fn=lambda data: data.metrics.get("schedule_raw"),
+        attr_key="schedule_raw",
+    ),
+    HomevoltSensorEntityDescription(
         key="grid_energy_imported",
         name="Homevolt Grid Energy Imported",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,

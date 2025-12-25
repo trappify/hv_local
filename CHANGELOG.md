@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.14
+- Added a raw schedule sensor that exposes the full schedule list (with parsed state and setpoint) in attributes.
+
 ## 0.0.13
 - Seed Kalman SoH estimates from the last full sample on upgrade to avoid returning to `unknown`.
 

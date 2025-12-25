@@ -122,6 +122,7 @@ def test_summarize_populates_metrics() -> None:
     assert summary.metrics["voltage_l3"] == 230.5
     assert summary.metrics["schedule_state"] == "charge"
     assert summary.metrics["schedule_setpoint"] == 3500
+    assert summary.metrics["schedule_raw"] == 1
     assert summary.metrics["health_state"] == "error"
     assert summary.metrics["warning_count"] == 1
     assert summary.metrics["error_count"] == 1
@@ -133,6 +134,11 @@ def test_summarize_populates_metrics() -> None:
     schedule_attrs = summary.attributes["schedule"]
     assert schedule_attrs["local_mode"] == "auto"
     assert schedule_attrs["setpoint"] == 3500
+    schedule_raw_attrs = summary.attributes["schedule_raw"]
+    assert schedule_raw_attrs["local_mode"] == "auto"
+    assert schedule_raw_attrs["count"] == 1
+    assert schedule_raw_attrs["entries"][0]["state"] == "charge"
+    assert schedule_raw_attrs["entries"][0]["setpoint"] == 3500
 
     system_attrs = summary.attributes["system"]
     assert system_attrs["warnings"] == ["temp_high"]
@@ -159,6 +165,9 @@ def test_summarize_handles_missing_data() -> None:
     assert summary.metrics["health_state"] == "unknown"
     assert summary.metrics["warning_count"] == 0
     assert summary.metrics["error_count"] == 0
+    assert summary.metrics["schedule_raw"] == 0
+    assert summary.attributes["schedule_raw"]["count"] == 0
+    assert summary.attributes["schedule_raw"]["entries"] == []
 
 
 def test_summarize_populates_next_schedule_events() -> None:

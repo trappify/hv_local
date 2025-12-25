@@ -28,12 +28,14 @@ def summarize(payload: HomevoltPayload, now: datetime | None = None) -> Homevolt
         "solar": {},
         "load": {},
         "schedule": {},
+        "schedule_raw": {},
         "errors": {},
     }
 
     status = _ensure_mapping(payload.status)
     ems = _ensure_mapping(payload.ems)
     schedule = _ensure_mapping(payload.schedule) if payload.schedule else {}
+    schedule_entries = _normalize_schedule_entries(schedule.get("schedule"))
 
     ems_block = _first_list_entry(ems.get("ems"))
     ems_data = _ensure_mapping(ems_block.get("ems_data"))
@@ -118,6 +120,15 @@ def summarize(payload: HomevoltPayload, now: datetime | None = None) -> Homevolt
     metrics["voltage_l3"] = _scaled_value(ems_voltage.get("l3"), 10)
 
     # Schedule summarization
+    metrics["schedule_raw"] = len(schedule_entries)
+    attributes["schedule_raw"].update(
+        {
+            "local_mode": schedule.get("local_mode"),
+            "count": len(schedule_entries),
+            "entries": schedule_entries,
+        }
+    )
+
     active_schedule = _select_schedule(schedule.get("schedule"), now)
     if active_schedule:
         schedule_state = SCHEDULE_TYPE_LABELS.get(active_schedule.get("type"))
@@ -262,6 +273,21 @@ def _sensor_by_index(sensors: Iterable[Any], index: int) -> Mapping[str, Any]:
     if index < len(entries):
         return _ensure_mapping(entries[index])
     return {}
+
+
+def _normalize_schedule_entries(schedule_list: Iterable[Any] | None) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    for entry in _ensure_list(schedule_list):
+        data = _ensure_mapping(entry)
+        if not data:
+            continue
+        params = _ensure_mapping(data.get("params"))
+        entry_type = data.get("type")
+        data["params"] = params
+        data["state"] = SCHEDULE_TYPE_LABELS.get(entry_type, "unknown")
+        data["setpoint"] = _as_float(params.get("setpoint"))
+        entries.append(data)
+    return entries
 
 
 def _ensure_mapping(value: Any) -> dict[str, Any]:
