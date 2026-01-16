@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.17
+- Pointed the integration documentation link at the repository README.
+
 ## 0.0.16
 - Fixed total SoH sensor initialization so it restores Kalman state and stops reporting `unavailable`.
 

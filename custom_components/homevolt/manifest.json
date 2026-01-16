@@ -1,8 +1,8 @@
 {
   "domain": "homevolt",
   "name": "Homevolt Local",
-  "version": "0.0.16",
-  "documentation": "https://community.home-assistant.io/t/homevolt-package/845654",
+  "version": "0.0.17",
+  "documentation": "https://github.com/trappify/hv_local#readme",
   "issue_tracker": "https://github.com/trappify/hv_local/issues",
   "requirements": [],
   "codeowners": [
