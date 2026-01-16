@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.16
+- Fixed total SoH sensor initialization so it restores Kalman state and stops reporting `unavailable`.
+
 ## 0.0.15
 - Removed parsed fields from the raw schedule sensor so attributes mirror the gateway payload.
 

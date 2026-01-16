@@ -943,6 +943,9 @@ class HomevoltSohTotalSensor(
         self._baseline: float | None = None
         self._last_soh: float | None = None
         self._was_full = False
+        self._kalman_estimate: float | None = None
+        self._kalman_variance: float | None = None
+        self._last_sample_temp: float | None = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -954,6 +957,14 @@ class HomevoltSohTotalSensor(
             self._auto_baseline = _safe_float(last_state.attributes.get("baseline_full_available_energy"))
         self._baseline = _safe_float(last_state.attributes.get("baseline_full_available_energy"))
         self._last_sample = _safe_float(last_state.attributes.get("last_sampled_full_available_energy"))
+        self._kalman_estimate = _safe_float(last_state.attributes.get("kalman_estimate_kwh"))
+        self._kalman_variance = _safe_float(last_state.attributes.get("kalman_variance"))
+        self._last_sample_temp = _safe_float(last_state.attributes.get("last_sample_temperature"))
+        if self._kalman_estimate is None and self._last_sample is not None:
+            self._kalman_estimate, self._kalman_variance = seed_kalman_estimate(
+                last_sample=self._last_sample,
+                last_temperature=self._last_sample_temp,
+            )
 
     @property
     def native_value(self) -> float | None:
