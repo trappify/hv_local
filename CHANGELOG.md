@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.18
+- Added battery time remaining sensor (`sensor.homevolt_battery_time_remaining`) that estimates minutes until empty during discharge, smoothed with an exponential moving average on battery power.
+
 ## 0.0.17
 - Pointed the integration documentation link at the repository README.
 
