@@ -22,6 +22,7 @@ from homeassistant.const import (
     UnitOfFrequency,
     UnitOfPower,
     UnitOfTemperature,
+    UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -305,6 +306,86 @@ def _safe_float(value: Any) -> float | None:
         return None
 
 
+class HomevoltTimeRemainingSensor(
+    CoordinatorEntity[HomevoltDataUpdateCoordinator],
+    SensorEntity,
+):
+    """Battery time remaining, smoothed with an EMA on discharge power."""
+
+    _ALPHA = 0.3
+    _MIN_DISCHARGE_W = 20
+
+    def __init__(
+        self,
+        *,
+        coordinator: HomevoltDataUpdateCoordinator,
+        entry: ConfigEntry,
+        entry_id: str,
+    ) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._attr_unique_id = f"{entry_id}_battery_time_remaining"
+        self._attr_name = "Homevolt Battery Time Remaining"
+        self._attr_native_unit_of_measurement = UnitOfTime.MINUTES
+        self._attr_device_class = SensorDeviceClass.DURATION
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_icon = "mdi:battery-clock"
+        self._attr_suggested_display_precision = 0
+        self._ema_power: float | None = None
+
+    @property
+    def native_value(self) -> float | None:
+        if not self.coordinator.data:
+            return None
+
+        power_w = _safe_float(self.coordinator.data.metrics.get("battery_power"))
+
+        if power_w is None or power_w <= self._MIN_DISCHARGE_W:
+            self._ema_power = None
+            return None
+
+        # Seed on first reading of a new discharge period, then smooth
+        if self._ema_power is None:
+            self._ema_power = power_w
+        else:
+            self._ema_power = self._ALPHA * power_w + (1 - self._ALPHA) * self._ema_power
+
+        modules = self.coordinator.data.attributes.get("battery", {}).get("modules", [])
+        total_energy_kwh = sum(
+            m["energy_available"]
+            for m in modules
+            if m.get("energy_available") is not None
+        )
+
+        if total_energy_kwh <= 0:
+            return None
+
+        return round(total_energy_kwh / (self._ema_power / 1000) * 60)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        return {
+            "ema_power_w": round(self._ema_power) if self._ema_power is not None else None,
+        }
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        host = self._entry.data.get(CONF_HOST)
+        port = self._entry.data.get(CONF_PORT, DEFAULT_PORT)
+        use_https = self._entry.data.get(CONF_USE_HTTPS, DEFAULT_USE_HTTPS)
+        configuration_url = None
+        if host:
+            scheme = "https" if use_https else "http"
+            configuration_url = f"{scheme}://{host}:{port}"
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry.unique_id or self._entry.entry_id)},
+            name=DEFAULT_NAME,
+            manufacturer="Homevolt",
+            model="Battery Gateway",
+            configuration_url=configuration_url,
+        )
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -456,7 +537,12 @@ async def async_setup_entry(
             )
         )
 
-    async_add_entities([*base_entities, *module_entities, *total_entities])
+    time_remaining = HomevoltTimeRemainingSensor(
+        coordinator=coordinator,
+        entry=entry,
+        entry_id=entry.entry_id,
+    )
+    async_add_entities([*base_entities, *module_entities, *total_entities, time_remaining])
 
 
 class HomevoltSensor(CoordinatorEntity[HomevoltDataUpdateCoordinator], SensorEntity):
